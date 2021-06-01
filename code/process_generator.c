@@ -1,12 +1,12 @@
 #include "headers.h"
-// typedef struct
-// {
-//     int arrivaltime;
-//     int priority;
-//     int runningtime;
-//     int id;
-// } processData;
+#include "processTable.h"
 void clearResources(int);
+int MsgQID;
+struct msgbuff // the message format
+{
+    long mtype;
+    comingProcess *currentProcess;
+};
 
 int main(int argc, char *argv[]) // file name, scheduling algorithm
 {
@@ -17,69 +17,105 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         printf("passed argument number %d is: %s\n", i, argv[i]);
     //****************************************************************
     // 1. Read the input files and save them
-    // const char* file_name = argv[2];
-    char * FileName = argv[1];
-    //printf("%s\n",FileName);
+    char *FileName = argv[1];
     FILE *pFile;
-    pFile = fopen(FileName, "r"); // read mode // TODO: add it as a variable
+    pFile = fopen(FileName, "r"); // read mode
     if (pFile == NULL)
     {
         perror("\nError while opening the file:");
         exit(EXIT_FAILURE);
     }
     //******************************
-    printf("#id arrival runtime priority\n");
-
-    // only test queue
-    queue * ready_queue;
-    ready_queue = malloc(sizeof(queue));
-    initialize(ready_queue);
-
-    char buff[150];
-    int processCount = 0;
-    
-    int count  = 0;
-    int id,arrivaltime,runningtime,priority;
-
+    int tableSize = 100;                                             // indicates the max arrival time
+    comingProcess **procTable = createComingProcessTable(tableSize); // creates a table (hashmap) for the commingProcesses
+    char buff[50];                                                   // line length
     while (fgets(buff, sizeof(buff), pFile) != NULL)
     {
-        if (buff[0] == '#'){
+        if (buff[0] == '#')
             continue;
-        }
-        sscanf(buff,"%d\t%d\t%d\t%d",
+
+        int id, arrivaltime, runningtime, priority;
+        sscanf(buff, "%d\t%d\t%d\t%d",
                &(id),
                &(arrivaltime),
                &(runningtime),
                &(priority));
-        // put current process in ready queue;
-        enqueue(ready_queue,arrivaltime,priority,runningtime,id);
-    }
-    
-    fclose(pFile);
-    
-    //check
-    printf("the number of processes is :%d \n",ready_queue->count);
-    display(ready_queue->Head);
 
+        // create a new comingProcess and add it to the table
+        comingProcess *currentProcess = createComingProcess(arrivaltime, priority, runningtime, id);
+        addComingProcess(procTable, currentProcess);
+    }
+    fclose(pFile);
+    // print the processes
+    printf("#id arrival runtime priority\n");
+    showComingProcesses(procTable, tableSize);
     //****************************************************************
     // 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list.
-    int chosen_algorithm = atoi(argv[2]);
-    printf("%d",chosen_algorithm);
+    char *chosen_algorithm = argv[2];
+    char *additionalParameters = argv[3]; // like quantum in case of RR
+    printf("%s", chosen_algorithm);
     // 3. Initiate and create the scheduler and clock processes.
-
-
-    
+    int pid = fork();
+    if (pid == 0)
+    {
+        char *arr[] = {NULL};
+        execv("./scheduler.out", arr);
+        // execl("./clock.out", NULL);
+    }
+    // create keys for the message queue
+    key_t KeyID = ftok("keyfile", 'S'); // the key of the Queue
+    // get the message queues
+    MsgQID = msgget(KeyID, 0666 | IPC_CREAT); //create messageReceived queue and return id
+    // check for any errors
+    if (MsgQID == -1) // if messageid == -1, it failed to create the queue
+    {
+        perror("Error in create");
+        exit(-1);
+    }
+    pid = fork();
+    if (pid == 0)
+    {
+        char *arr[] = {chosen_algorithm, additionalParameters, NULL};
+        execv("./scheduler.out", arr);
+        // execl("./scheduler.out", chosen_algorithm, additionalParameters, NULL);
+    }
     // 4. Use this function after creating the clock process to initialize clock.
-    // initClk();
-    // // To get time use this function.
-    // int x = getClk();
-    // printf("Current Time is %d\n", x);
+    initClk();
     // TODO Generation Main Loop
     //****************************************************************
     // 5. Create a data structure for processes and provide it with its parameters.
+    // done while reading the file
     //****************************************************************
     // 6. Send the information to the scheduler at the appropriate time.
-    //****************************************************************
+    struct msgbuff currentProcesses;
+    while (1)
+    {
+        int currentTime = getClk();
+        printf("Current Time is %d\n", currentTime);
+        if (procTable[currentTime] != NULL)
+        {
+            comingProcess *currentProcess = procTable[currentTime];
+            while (currentProcess->next != NULL)
+            {
+                currentProcess = currentProcess->next;
+
+                printf("%d, %d, %d, %d\n",
+                       currentProcess->id,
+                       currentProcess->arrivaltime,
+                       currentProcess->runningtime,
+                       currentProcess->priority);
+                currentProcesses.currentProcess = currentProcess;
+                // send the value to the server
+                int sendValue = msgsnd(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), !IPC_NOWAIT);
+
+                if (sendValue == -1)
+                    perror("Errror in send");
+            }
+            printf("I have sent all the processes at time %d\n", currentTime);
+        }
+    }
+
+    //****************************************************************s
     // 7. Clear clock resources
     destroyClk(true);
 }
@@ -87,5 +123,10 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
 void clearResources(int signum)
 {
     //TODO Clears all resources in case of interruption
+    // remove the message queue from the kernel
+    msgctl(MsgQID, IPC_RMID, (struct msqid_ds *)0);
+    // kill all the processes
     killpg(getpgrp(), SIGKILL);
+    // re-set the signal hnadler
+    signal(SIGINT, clearResources);
 }
