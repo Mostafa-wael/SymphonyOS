@@ -13,7 +13,7 @@ all: clean build
 run:
 	./process_generator.out
 
-test:
+testGen:
 	gcc process_generator.c -o process_generator.out
 	gcc test_generator.c -o test_generator.out
 	./test_generator.out 
