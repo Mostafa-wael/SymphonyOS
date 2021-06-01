@@ -21,19 +21,21 @@ struct queue
 };
 typedef struct queue queue;
 
-void initialize(queue *q)
+queue* createQueue() // creates a new queue
 {
-    q->count = 0;
-    q->Head = NULL;
-    q->Tail = NULL;
+    queue * newQueue = malloc(sizeof(queue));   
+    newQueue->count = 0;
+    newQueue->Head = NULL;
+    newQueue->Tail = NULL;
+    return newQueue;
 }
 
-int isempty(queue *q)
+int isempty(queue *q) // check if the queue is empty
 {
     return (q->Tail == NULL);
 }
 
-void enqueue(queue *q, int arrtime,int prio,int runtime,int id)
+void enqueue(queue *q, int arrtime,int prio,int runtime,int id) // add new process to the queue
 {
     
         Node *new_node;
@@ -46,12 +48,13 @@ void enqueue(queue *q, int arrtime,int prio,int runtime,int id)
         new_node->next = NULL;
         if(!isempty(q))
         {
-            q->Tail->next = new_node;
-            q->Tail = new_node;
+            q->Tail->next = new_node; // the new node is the next node for the tail
+            q->Tail = new_node; // the new node is now the new tail
         }
         else
         {
-            q->Head = q->Tail = new_node;
+            q->Head = q->Tail = new_node; // th head and the tail are this new node
+            q->count = 0;
         }
         q->count++;
     
@@ -62,7 +65,7 @@ void enqueue(queue *q, int arrtime,int prio,int runtime,int id)
 void display(Node *p)
 {  
     while(p != NULL){
-        printf("%d , %d , %d , %d \n",p->id,p->arrivaltime,p->runningtime , p->priority);
+        printf("%d, %d, %d, %d\n",p->id,p->arrivaltime,p->runningtime , p->priority);
         p = p->next;
     }
 }
