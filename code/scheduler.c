@@ -1,11 +1,37 @@
 #include "headers.h"
-
+int MsgQID;
 int main(int argc, char *argv[])
 {
     initClk();
+    printf("scheduler: Algorithm: %s", argv[1]);
+    while (1)
+    {
+        // create keys for the message queue
+        key_t KeyID = ftok("keyfile", SHMSGKEY); // the key of the Queue
+        // get the message queues
+        MsgQID = msgget(KeyID, 0666 | IPC_CREAT); //create messageReceived queue and return id
+        // check for any errors
+        if (MsgQID == -1) // if messageid == -1, it failed to create the queue
+        {
+            perror("scheduler: Error in create");
+            exit(-1);
+        }
+        struct msgbuff currentProcesses;
+        int recValue = msgrcv(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), currentProcesses.mtype, !IPC_NOWAIT);
 
-    //TODO: implement the scheduler.
-    //TODO: upon termination release the clock resources.
-    while(1){}
+        if (recValue == -1)
+            perror("scheduler: Error in receive");
+        else
+        {
+            printf("scheduler: %d, %d, %d, %d\n",
+                   currentProcesses.currentProcess.id,
+                   currentProcesses.currentProcess.arrivaltime,
+                   currentProcesses.currentProcess.runningtime,
+                   currentProcesses.currentProcess.priority);
+        }
+
+        //TODO: implement the scheduler.
+        //TODO: upon termination release the clock resources.
+    }
     destroyClk(true);
 }

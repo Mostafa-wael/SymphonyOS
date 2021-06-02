@@ -17,6 +17,7 @@ typedef short bool;
 #define false 0
 
 #define SHKEY 300
+#define SHMSGKEY 'S'
 
 ///==============================
 //don't mess with this variable//
@@ -61,3 +62,10 @@ void destroyClk(bool terminateAll)
         killpg(getpgrp(), SIGINT);
     }
 }
+
+//**************************************************************** Message Queues ****************************************************************//
+struct msgbuff // the message format
+{
+    long mtype;
+    comingProcess currentProcess;
+};

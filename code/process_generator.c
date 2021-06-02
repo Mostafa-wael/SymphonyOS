@@ -2,11 +2,6 @@
 
 void clearResources(int);
 int MsgQID;
-struct msgbuff // the message format
-{
-    long mtype;
-    comingProcess currentProcess;
-};
 
 int main(int argc, char *argv[]) // file name, scheduling algorithm
 {
@@ -55,15 +50,15 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     char *additionalParameters = argv[3]; // like quantum in case of RR
     printf("%s", chosen_algorithm);
     // 3. Initiate and create the scheduler and clock processes.
-    int pid = fork();
-    if (pid == 0)
+    int pidCLK = fork();
+    if (pidCLK == 0)
     {
+        printf("ProcessGenerator : I have started the clock");
         char *arr[] = {NULL};
         execv("./clk.out", arr);
-     
     }
     // create keys for the message queue
-    key_t KeyID = ftok("keyfile", 'S'); // the key of the Queue
+    key_t KeyID = ftok("keyfile", SHMSGKEY); // the key of the Queue
     // get the message queues
     MsgQID = msgget(KeyID, 0666 | IPC_CREAT); //create messageReceived queue and return id
     // check for any errors
@@ -72,12 +67,12 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         perror("Error in create");
         exit(-1);
     }
-    pid = fork();
-    if (pid == 0)
+    int pidSch = fork();
+    if (pidSch == 0)
     {
+        printf("ProcessGenerator : I have started the scheduler");
         char *arr[] = {chosen_algorithm, additionalParameters, NULL};
         execv("./scheduler.out", arr);
-        
     }
     // 4. Use this function after creating the clock process to initialize clock.
     initClk();
@@ -88,30 +83,37 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     //****************************************************************
     // 6. Send the information to the scheduler at the appropriate time.
     struct msgbuff currentProcesses;
+    int prevTime = getClk();
     while (1)
     {
         int currentTime = getClk();
-        printf("ProcessGenerator : Current Time is %d\n", currentTime);
-        if (procTable[currentTime] != NULL)
+        if (currentTime != prevTime) // add this condition to avoid printing the time a lot
         {
-            comingProcess *currentProcess = procTable[currentTime];
-            while (currentProcess->next != NULL)
+            printf("ProcessGenerator : Current Time is %d\n", currentTime);
+            if (procTable[currentTime] != NULL)
             {
-                currentProcess = currentProcess->next;
+                printf("ProcessGenerator : There is a process at Time %d\n", currentTime);
+                comingProcess *currentProcess = procTable[currentTime];
+                while (currentProcess->next != NULL)
+                {
+                    currentProcess = currentProcess->next;
 
-                printf("ProcessGenerator : %d, %d, %d, %d\n",
-                       currentProcess->id,
-                       currentProcess->arrivaltime,
-                       currentProcess->runningtime,
-                       currentProcess->priority);
-                currentProcesses.currentProcess = *currentProcess;
-                // send the value to the server
-                int sendValue = msgsnd(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), !IPC_NOWAIT);
+                    printf("ProcessGenerator : %d, %d, %d, %d\n",
+                           currentProcess->id,
+                           currentProcess->arrivaltime,
+                           currentProcess->runningtime,
+                           currentProcess->priority);
+                    currentProcesses.currentProcess = *currentProcess;
+                    // send the value to the server
+                    int sendValue = msgsnd(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), !IPC_NOWAIT);
 
-                if (sendValue == -1)
-                    perror("Errror in send");
+                    if (sendValue == -1)
+                        perror("Errror in send");
+                    else
+                        printf("ProcessGenerator : I have sent all the processes at time %d\n", currentTime);
+                }
             }
-            printf("ProcessGenerator : I have sent all the processes at time %d\n", currentTime);
+            prevTime = currentTime;
         }
     }
 
