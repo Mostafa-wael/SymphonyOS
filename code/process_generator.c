@@ -1,11 +1,11 @@
 #include "headers.h"
-#include "processTable.h"
+
 void clearResources(int);
 int MsgQID;
 struct msgbuff // the message format
 {
     long mtype;
-    comingProcess *currentProcess;
+    comingProcess currentProcess;
 };
 
 int main(int argc, char *argv[]) // file name, scheduling algorithm
@@ -59,8 +59,8 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     if (pid == 0)
     {
         char *arr[] = {NULL};
-        execv("./scheduler.out", arr);
-        // execl("./clock.out", NULL);
+        execv("./clk.out", arr);
+     
     }
     // create keys for the message queue
     key_t KeyID = ftok("keyfile", 'S'); // the key of the Queue
@@ -77,7 +77,7 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     {
         char *arr[] = {chosen_algorithm, additionalParameters, NULL};
         execv("./scheduler.out", arr);
-        // execl("./scheduler.out", chosen_algorithm, additionalParameters, NULL);
+        
     }
     // 4. Use this function after creating the clock process to initialize clock.
     initClk();
@@ -91,7 +91,7 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     while (1)
     {
         int currentTime = getClk();
-        printf("Current Time is %d\n", currentTime);
+        printf("ProcessGenerator : Current Time is %d\n", currentTime);
         if (procTable[currentTime] != NULL)
         {
             comingProcess *currentProcess = procTable[currentTime];
@@ -99,19 +99,19 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
             {
                 currentProcess = currentProcess->next;
 
-                printf("%d, %d, %d, %d\n",
+                printf("ProcessGenerator : %d, %d, %d, %d\n",
                        currentProcess->id,
                        currentProcess->arrivaltime,
                        currentProcess->runningtime,
                        currentProcess->priority);
-                currentProcesses.currentProcess = currentProcess;
+                currentProcesses.currentProcess = *currentProcess;
                 // send the value to the server
                 int sendValue = msgsnd(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), !IPC_NOWAIT);
 
                 if (sendValue == -1)
                     perror("Errror in send");
             }
-            printf("I have sent all the processes at time %d\n", currentTime);
+            printf("ProcessGenerator : I have sent all the processes at time %d\n", currentTime);
         }
     }
 

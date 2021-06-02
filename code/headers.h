@@ -11,6 +11,7 @@
 #include <unistd.h>
 #include <signal.h>
 #include "queues.h"
+#include "processTable.h"
 typedef short bool;
 #define true 1
 #define false 0

@@ -6,6 +6,6 @@ int main(int argc, char *argv[])
 
     //TODO: implement the scheduler.
     //TODO: upon termination release the clock resources.
-
+    while(1){}
     destroyClk(true);
 }
