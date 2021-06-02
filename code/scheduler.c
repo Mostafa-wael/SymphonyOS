@@ -3,10 +3,10 @@ int MsgQID;
 int main(int argc, char *argv[])
 {
     initClk();
-    printf("scheduler: Algorithm: %s", argv[1]);
-    while (1)
-    {
-        // create keys for the message queue
+    
+   
+    printf("scheduler: Algorithm: %s \n", argv[1]);
+            // create keys for the message queue
         key_t KeyID = ftok("keyfile", SHMSGKEY); // the key of the Queue
         // get the message queues
         MsgQID = msgget(KeyID, 0666 | IPC_CREAT); //create messageReceived queue and return id
@@ -15,15 +15,21 @@ int main(int argc, char *argv[])
         {
             perror("scheduler: Error in create");
             exit(-1);
+            
         }
-        struct msgbuff currentProcesses;
-        int recValue = msgrcv(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), currentProcesses.mtype, !IPC_NOWAIT);
+         struct msgbuff currentProcesses;
+    while (1)
+    {
+
+       
+        int recValue = msgrcv(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), 7, !IPC_NOWAIT);
 
         if (recValue == -1)
             perror("scheduler: Error in receive");
         else
         {
-            printf("scheduler: %d, %d, %d, %d\n",
+             printf("\nMessage received:\n");
+            printf("scheduler: %d, %d, %d, %d\n \n",
                    currentProcesses.currentProcess.id,
                    currentProcesses.currentProcess.arrivaltime,
                    currentProcesses.currentProcess.runningtime,
