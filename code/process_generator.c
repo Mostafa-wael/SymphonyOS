@@ -88,9 +88,10 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         execv("./clk.out", arr);
     }
     // create keys for the message queue
-    key_t KeyID = ftok("keyfile", SHMSGKEY); // the key of the Queue
+    //key_t KeyID = ftok("keyfile", SHMSGKEY); // the key of the Queue
     // get the message queues
-    MsgQID = msgget(KeyID, 0666 | IPC_CREAT); //create messageReceived queue and return id
+    MsgQID = msgget(ftok("keyfile", 'S'), 0666 | IPC_CREAT); 
+    //create messageReceived queue and return id
     // check for any errors
     if (MsgQID == -1) // if messageid == -1, it failed to create the queue
     {
@@ -108,7 +109,10 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     // 6. Send the information to the scheduler at the appropriate time.
     struct msgbuff currentProcesses;
     // shared memory 4 byte and id ftok keyfile 'M'
-    // int * msgqueue    
+    // int * msgqueue   
+    int MsqQIDszSHMID = shmget(ftok("keyfile", 'M'),4,0666|IPC_CREAT);
+    int* MsgQIDsz   = (int*)shmat(MsqQIDszSHMID,0,0);
+    
     int prevTime = getClk();
     unsigned int current_index = 0;
     //procTable[number_processes-1].arrivaltime > getClk()
@@ -119,27 +123,30 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         if (currentTime != prevTime) // add this condition to avoid printing the time a lot
         {
             printf("ProcessGenerator : Current Time is %d\n", currentTime);
-            while (procTable[current_index].arrivaltime == currentTime)
-            {
-                printf("ProcessGenerator : There is a process at Time %d\n", currentTime);
+            if (procTable[current_index].arrivaltime == currentTime)
+            {            
+                while (procTable[current_index].arrivaltime == currentTime)
+                {
+                    printf("ProcessGenerator : There is a process at Time %d\n", currentTime);
 
-                    // send the value to the server
-                    currentProcesses.mtype = 7;
-                    currentProcesses.currentProcess = procTable[current_index];
-                    int sendValue = msgsnd(MsgQID, &currentProcesses, sizeof(currentProcesses.currentProcess), !IPC_NOWAIT);
-                    if (sendValue == -1)
-                        perror("Errror in send");
-                    else{
-                        //message queue size ++ 
-                        printf("ProcessGenerator : %d, %d, %d, %d\n",
-                           procTable[current_index].id,
-                           procTable[current_index].arrivaltime,
-                           procTable[current_index].runningtime,
-                           procTable[current_index].priority);
-                    }    
-                    current_index++;
+                        // send the value to the server
+                        currentProcesses.mtype = 7;
+                        currentProcesses.currentProcess = procTable[current_index];
+                        int sendValue = msgsnd(MsgQID, &currentProcesses, sizeof(struct msgbuff) - sizeof(long), !IPC_NOWAIT);
+                        if (sendValue == -1)
+                            perror("Errror in sent");
+                        else{
+                            (*MsgQIDsz)++;
+                            printf("ProcessGenerator : %d, %d, %d, %d\n",
+                            procTable[current_index].id,
+                            procTable[current_index].arrivaltime,
+                            procTable[current_index].runningtime,
+                            procTable[current_index].priority);
+                        }    
+                        current_index++;
+                }  
+            kill(pidSch,SIGUSR1);
             }
-            //signusr1(shr);
             prevTime = currentTime;
         }
     }
@@ -148,7 +155,7 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     //
     //****************************************************************s
     // 7. Clear clock resources
-    destroyClk(true);
+   
     
 }
 
@@ -158,7 +165,9 @@ void clearResources(int signum)
     // remove the message queue from the kernel
     msgctl(MsgQID, IPC_RMID, (struct msqid_ds *)0);
     // kill all the processes
-    killpg(getpgrp(), SIGKILL);
+    killpg(getpgrp(), SIGINT);
     // re-set the signal hnadler
     signal(SIGINT, clearResources);
+    destroyClk(true);
+    exit(0);
 }

@@ -1,11 +1,6 @@
 #include "headers.h"
-#include "processTable.h"
 #include <string.h>
-struct msgbuff
-{
-    long mtype;
-    comingProcess currentProcess;
-};
+
 
 #define MAX_NUM_PROCS 100 
 
@@ -34,8 +29,13 @@ struct {
 
 void recieve_proc(){
     struct msgbuff reply ;
-    msgrcv(MsgQID,&reply,sizeof(struct msgbuff) - sizeof(long),0,!IPC_NOWAIT);
-    
+    int recv = msgrcv(MsgQID,&reply,sizeof(struct msgbuff) - sizeof(long),0,!IPC_NOWAIT);
+    if(recv == -1){
+        perror("error");
+    }
+    else{
+        printf("success\n");
+    }
     if(arrivalQ.num_processes < arrivalQ.capacity){
         arrivalQ.processes[arrivalQ.num_processes].id      = reply.currentProcess.id ;
         arrivalQ.processes[arrivalQ.num_processes].arrt    = reply.currentProcess.arrivaltime ;
@@ -63,9 +63,9 @@ FILE* LogFile ;
 int RR_quanta ;
 int main(int argc, char *argv[])
 {   
-    MsgQID        = msgget(ftok("keyfile", 'S'), 0666 | IPC_CREAT); 
+    MsgQID  = msgget(ftok("keyfile", 'S'), 0666 | IPC_CREAT); 
     int MsqQIDszSHMID = shmget(ftok("keyfile", 'M'),4,0666|IPC_CREAT);
-    MsgQIDsz      = (int*)shmat(MsqQIDszSHMID,NULL,0);
+    MsgQIDsz   = (int*)shmat(MsqQIDszSHMID,NULL,0);
     
     arrivalQ.processes = (struct proc*)malloc(MAX_NUM_PROCS*sizeof(struct proc));
     arrivalQ.capacity = MAX_NUM_PROCS ;
@@ -172,12 +172,14 @@ void round_robin(void){
 
 
 void on_msgqfull_handler(int signum){
+   
     for(; (*MsgQIDsz) > 0; (*MsgQIDsz)--)  recieve_proc();
 
     signal(SIGUSR1,on_msgqfull_handler);
 }
 
 void on_process_complete_awake(int signum){
+
     process_completed = true ;
     signal(SIGUSR2,on_process_complete_awake);
 }
