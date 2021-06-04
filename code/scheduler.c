@@ -1,16 +1,10 @@
 #include "headers.h"
 
-
-#define FIRST_COME_FIRST_SERVE "FCFS"
-#define SHORTEST_JOB_FIRST "SJF"
-#define PREEMPTIVE_HIGHEST_PRIORITY_FIRST "PHPF"
-#define SHORTEST_REMAINING_TIME_NEXT "SRTN"
-#define ROUND_ROBIN "RR"
-
 int MsgQID;
 int *MsgQIDsz;
-
-
+bool process_completed;
+FILE *LogFile;
+int RR_quanta;
 struct
 {
     struct proc *processes;
@@ -21,16 +15,14 @@ struct
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //************************************ Functions Prototypes ***********************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
-pid_t fork_process(int);
 void first_come_first_serve(void);
 void round_robin(void);
+//
 void on_msgqfull_handler(int);
-bool process_completed;
 void on_process_complete_awake(int);
+pid_t fork_process(int);
 void free_resources(int);
-FILE *LogFile;
-int RR_quanta;
-
+void recieve_proc();
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Main loop *****************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -46,7 +38,7 @@ int main(int argc, char *argv[])
     arrivalQ.capacity = MAX_NUM_PROCS;
     arrivalQ.num_processes = 0;
 
-    // initiating signal handlers 
+    // initiating signal handlers
     signal(SIGUSR1, on_msgqfull_handler);
     signal(SIGUSR2, on_process_complete_awake);
     signal(SIGINT, free_resources);
@@ -62,29 +54,20 @@ int main(int argc, char *argv[])
     algos_ptrs[3] = NULL;
     algos_ptrs[4] = round_robin;
 
-    // initiating the scheduler 
-    int algo_idx = -1;
+    // initiating the scheduler
     printf("Schduler : called on %s\n", argv[0]);
     if ((LogFile = fopen("scheduler.log", "w")) == NULL)
         printf("Scheduler: Failed to open log file");
 
-
-    if (strcmp(argv[0], FIRST_COME_FIRST_SERVE) == 0)
-        algo_idx = 0;
-    else if (strcmp(argv[0], SHORTEST_JOB_FIRST) == 0)
-        algo_idx = 1;
-    else if (strcmp(argv[0], PREEMPTIVE_HIGHEST_PRIORITY_FIRST) == 0)
-        algo_idx = 2;
-    else if (strcmp(argv[0], SHORTEST_REMAINING_TIME_NEXT) == 0)
-        algo_idx = 3;
-    else
+    int algo_idx = atoi(argv[0]) -1;
+    if (algo_idx == 4)
     {
         RR_quanta = atoi(argv[1]);
-        algo_idx = 4;
+        printf("Schduler : RoundRobin Quantum is %s\n", argv[1]);
     }
 
     // call the scheduling algorithm accodring to the selected one
-    if (algos_ptrs[algo_idx] != NULL)
+    if (algos_ptrs[algo_idx] != NULL)// check if the algorithm was implemented or not
         algos_ptrs[algo_idx]();
     else
     {
@@ -120,7 +103,6 @@ void first_come_first_serve(void)
         }
     }
 }
-
 void round_robin(void)
 {
     pid_t PIDS[MAX_NUM_PROCS];
@@ -188,7 +170,6 @@ void on_msgqfull_handler(int signum)
 
     signal(SIGUSR1, on_msgqfull_handler);
 }
-
 /**
  * @brief mark the process as complete 
  * @param signum, signal number as it is a signal handler

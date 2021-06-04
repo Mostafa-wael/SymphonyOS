@@ -33,7 +33,8 @@ int main(int agrc, char *argv[])
             prev = curr;
         }
     }
-    kill(getppid(), SIGUSR2); // kill the processa wehn its remaining time is zero!
+    kill(getppid(), SIGUSR2); // mark the process as complete when its remaining time is zero!
+    printf("Process: a process has finished");
 
 
     destroyClk(false);

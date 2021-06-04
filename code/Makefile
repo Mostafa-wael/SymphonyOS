@@ -12,7 +12,9 @@ all: clean build
 
 run:
 	./process_generator.out processes.txt 1
-
+# call it like this "make testGen algo=5 q=10", I have added some initila values to them
+algo=1
+q=5
 testGen:
 	gcc clk.c -o clk.out
 	gcc scheduler.c -o scheduler.out
@@ -20,4 +22,4 @@ testGen:
 	gcc process_generator.c -o process_generator.out
 	gcc test_generator.c -o test_generator.out 
 	./test_generator.out 
-	./process_generator.out processes.txt 1
+	./process_generator.out processes.txt $(algo) $(q) # pass the algorithm and the quanta
