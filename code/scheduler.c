@@ -1,5 +1,4 @@
 #include "headers.h"
-#include "min_heap.h"
 int MsgQID;
 int *MsgQIDsz;
 bool process_completed;
