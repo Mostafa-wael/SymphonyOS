@@ -18,6 +18,7 @@ void first_come_first_serve(void);
 void PreemptiveHighestPriorityFirst(void);
 void round_robin(void);
 void shortest_job_first(void);
+void shortest_remaining_time_next(void);
 //
 void on_msgqfull_handler(int);
 void on_process_complete_awake(int);
@@ -52,7 +53,7 @@ int main(int argc, char *argv[])
     algos_ptrs[0] = first_come_first_serve;
     algos_ptrs[1] = shortest_job_first;
     algos_ptrs[2] = PreemptiveHighestPriorityFirst;
-    algos_ptrs[3] = NULL;
+    algos_ptrs[3] = shortest_remaining_time_next;
     algos_ptrs[4] = round_robin;
 
     // initiating the scheduler
@@ -176,6 +177,7 @@ void PreemptiveHighestPriorityFirst(void)
 void shortest_job_first(void)
 {
     min_heap priority_queue;
+    priority_queue.size = 0;
 
     while(true)
     {
@@ -209,6 +211,83 @@ void shortest_job_first(void)
             fprintf(LogFile, "process #%d finished at time %d\n", process->id, getClk());
         }  
 
+    }
+}
+
+void shortest_remaining_time_next(void)
+{
+    bool running = false;    //no process is running initially
+    proc* running_process = NULL;
+    min_heap priority_queue;
+    priority_queue.size = 0;
+
+    //just for testing 
+    bool flag[4] = {false, false, false, false};
+
+    while(true)
+    {
+        for (int i = 0; i < arrivalQ.num_processes; i++)
+        {
+            if (arrivalQ.processes[i].state != READY)
+            {
+                continue;
+            }    
+            //creating a new heap node and setting its priority to running time (shortest running time first)
+            heap_node* node = (heap_node*)malloc(sizeof(heap_node));       
+            node->process = &arrivalQ.processes[i];         
+            node->key = node->process->runt;         
+            node->process->state = RUNNING;      
+            min_heap_insert(&priority_queue, node);
+            fprintf(LogFile, "added to min heap: process#%d at time = %d state = %d\n\n", node->process->id, getClk(), node->process->state);
+        }
+
+        if (!running && priority_queue.size > 0)      //there is no running process currently
+        {
+            running_process = min_heap_extract(&priority_queue)->process;
+            running_process->start_time = getClk();
+            running = true;
+            running_process->state = RUNNING;
+            fprintf(LogFile, "run (and remove from the heap) process#%d at time = %d\n\n", running_process->id, getClk());
+            fork_process(running_process->runt);
+        }
+        else
+        {
+            //fprintf(LogFile, "running process#%d, expected finish time = %d\n", running_process->id, running_process->start_time + running_process->runt);
+            if (running_process != NULL && running_process->start_time + running_process->runt == getClk()) //check if the running process is finished
+            {
+                running = false;
+                running_process->state = FINISHED;
+                
+                if (!flag[running_process->id])
+                {
+                    flag[running_process->id] = true;
+                    fprintf(LogFile, "process #%d finished at time = %d\n\n", running_process->id, getClk());
+                }
+                
+            }
+            // fprintf(LogFile, "running process runtime = %d\n", running_process->runt);
+            // fprintf(LogFile, "minimum runtime in the heap = %d, id = %d\n", priority_queue.heap[0]->process->runt, priority_queue.heap[0]->process->id);
+            // fprintf(LogFile, "running = %d\n", running);
+            if (running && priority_queue.size > 0 && priority_queue.heap[0]->process->runt < running_process->runt - (getClk() - running_process->start_time))
+            {
+                //preempt
+                heap_node* new_running_node;
+                new_running_node = min_heap_extract(&priority_queue);
+                new_running_node->process->start_time = getClk();
+                new_running_node->process->state = RUNNING;
+
+                fprintf(LogFile, "run process#%d (extract from the min heap) ", new_running_node->process->id);
+
+                heap_node* temp_node = (heap_node*)malloc(sizeof(heap_node));
+                running_process->state = READY;
+                running_process->runt = running_process->runt - (getClk() - running_process->start_time);
+                temp_node->process = running_process;
+                temp_node->key = temp_node->process->runt;
+
+                running_process = new_running_node->process;
+                fprintf(LogFile, "--- add process#%d to min heap at time = %d (preemption)\n\n", temp_node->process->id, getClk());
+            }
+        } 
     }
 }
 

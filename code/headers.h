@@ -93,6 +93,7 @@ struct proc
     int arrt;
     int runt;
     int priorty;
+    int start_time;
     enum proc_state state;
 };
 typedef struct proc proc;

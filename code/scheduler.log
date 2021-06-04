@@ -1,0 +1,26 @@
+added to min heap: process#1 at time = 2 state = 2
+
+run (and remove from the heap) process#1 at time = 2
+
+added to min heap: process#2 at time = 3 state = 2
+
+run process#2 (extract from the min heap) --- add process#1 to min heap at time = 3 (preemption)
+
+added to min heap: process#1 at time = 3 state = 2
+
+added to min heap: process#3 at time = 4 state = 2
+
+run process#3 (extract from the min heap) --- add process#2 to min heap at time = 4 (preemption)
+
+added to min heap: process#2 at time = 4 state = 2
+
+process #3 finished at time = 5
+
+run (and remove from the heap) process#2 at time = 5
+
+process #2 finished at time = 7
+
+run (and remove from the heap) process#1 at time = 7
+
+process #1 finished at time = 11
+
