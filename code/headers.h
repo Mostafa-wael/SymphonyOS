@@ -24,6 +24,8 @@ typedef short bool;
 #define SHKEY 300
 #define SHMSGKEY 'S'
 
+#define MAX_NUM_PROCS 100
+
 ///==============================
 //don't mess with this variable//
 int *shmaddr; //
@@ -74,3 +76,18 @@ struct msgbuff // the message format
     long mtype;
     comingProcess currentProcess;
 };
+
+enum proc_state 
+{
+    READY,
+    SUSPENDED
+};
+struct proc
+{
+    int id;
+    int arrt;
+    int runt;
+    int priorty;
+    enum proc_state state;
+};
+typedef struct proc proc;

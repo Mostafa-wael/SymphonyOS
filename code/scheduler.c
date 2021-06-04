@@ -1,6 +1,5 @@
 #include "headers.h"
 
-#define MAX_NUM_PROCS 100
 
 #define FIRST_COME_FIRST_SERVE "FCFS"
 #define SHORTEST_JOB_FIRST "SJF"
@@ -11,19 +10,7 @@
 int MsgQID;
 int *MsgQIDsz;
 
-enum proc_state 
-{
-    READY,
-    SUSPENDED
-};
-struct proc
-{
-    int id;
-    int arrt;
-    int runt;
-    int priorty;
-    enum proc_state state;
-};
+
 struct
 {
     struct proc *processes;
