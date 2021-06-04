@@ -29,8 +29,8 @@ void recieve_proc();
 int main(int argc, char *argv[])
 {
     // message initilizations
-    MsgQID = msgget(ftok("keyfile", 'S'), 0666 | IPC_CREAT);
-    int MsqQIDszSHMID = shmget(ftok("keyfile", 'M'), 4, 0666 | IPC_CREAT);
+    MsgQID = msgget(ftok("keyfile", MSGSGKEY), 0666 | IPC_CREAT);
+    int MsqQIDszSHMID = shmget(ftok("keyfile", SHMSGKEY), 4, 0666 | IPC_CREAT);
     MsgQIDsz = (int *)shmat(MsqQIDszSHMID, NULL, 0);
 
     // initiating the arrival queue
@@ -55,23 +55,27 @@ int main(int argc, char *argv[])
     algos_ptrs[4] = round_robin;
 
     // initiating the scheduler
-    printf("Schduler : called on %s\n", argv[0]);
+    // open log file
     if ((LogFile = fopen("scheduler.log", "w")) == NULL)
-        printf("Scheduler: Failed to open log file");
+        printf("Scheduler: Failed to open log file\n");
+    else
+        printf("Scheduler: managed to open log file\n");
 
-    int algo_idx = atoi(argv[0]) -1;
+    // get the selected algorithm
+    printf("Schduler : called on %s\n", argv[0]);
+    int algo_idx = atoi(argv[0]) - 1;
     if (algo_idx == 4)
     {
         RR_quanta = atoi(argv[1]);
-        printf("Schduler : RoundRobin Quantum is %s\n", argv[1]);
+        printf("Schduler: RoundRobin Quantum is %s\n", argv[1]);
     }
 
     // call the scheduling algorithm accodring to the selected one
-    if (algos_ptrs[algo_idx] != NULL)// check if the algorithm was implemented or not
+    if (algos_ptrs[algo_idx] != NULL) // check if the algorithm was implemented or not
         algos_ptrs[algo_idx]();
     else
     {
-        perror("scheduler : Called with an algorithm that wasn't implemented yet");
+        perror("scheduler: Called with an algorithm that wasn't implemented yet");
         exit(-1);
     }
 }
@@ -83,12 +87,13 @@ void first_come_first_serve(void)
 {
     while (1)
     {
+        // printf("Scheduler: first_come_first_serve number of processes %d\n", arrivalQ.num_processes);
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
             if (arrivalQ.processes[i].id == -1)
                 continue;
 
-            fprintf(LogFile, "at %d Process with id = %d commencing now \n", getClk(), arrivalQ.processes[i].id);
+            fprintf(LogFile, "at %d Process with id = %d comming now \n", getClk(), arrivalQ.processes[i].id);
             fork_process(arrivalQ.processes[i].runt);
 
             //the sleep will not complete off course
@@ -165,6 +170,7 @@ void round_robin(void)
  */
 void on_msgqfull_handler(int signum)
 {
+    printf("Scheduler: I have received a signal that %d processes was sent\n", (*MsgQIDsz));
     for (; (*MsgQIDsz) > 0; (*MsgQIDsz)--)
         recieve_proc();
 
@@ -177,6 +183,7 @@ void on_msgqfull_handler(int signum)
 void on_process_complete_awake(int signum)
 {
     process_completed = true;
+    printf("Schduler: a process has finished");
     signal(SIGUSR2, on_process_complete_awake);
 }
 /**
@@ -186,12 +193,12 @@ void on_process_complete_awake(int signum)
 void free_resources(int signum)
 {
     fclose(LogFile);
+    printf("Schduler: I managed to close the log file");
     exit(0);
 }
 /**
  * @brief recieve new processes from the message queue, as long as the PCB table is not full,
  * in case that the PCB table is full, it ignores the recieved process.
- * 
  */
 void recieve_proc()
 {
@@ -222,7 +229,6 @@ void recieve_proc()
     else
         printf("Scheduler: Error recieving a process... \nPCB array is full... Process Ignored");
 }
-
 /**
  * @brief his function is responsible for running a process by froking it, it creates a new 
  * child then, use execv to start it as a new process .

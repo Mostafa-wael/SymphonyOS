@@ -12,10 +12,10 @@ all: clean build
 
 run:
 	./process_generator.out processes.txt 1
-# call it like this "make testGen algo=5 q=10", I have added some initila values to them
+# call it like this "make test algo=5 q=10", I have added some initial values to them. So "make test" is valid too
 algo=1
 q=5
-testGen:
+test:
 	gcc clk.c -o clk.out
 	gcc scheduler.c -o scheduler.out
 	gcc process.c -o process.out

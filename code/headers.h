@@ -23,6 +23,7 @@ typedef short bool;
 
 #define SHKEY 300
 #define SHMSGKEY 'S'
+#define MSGSGKEY 'M'
 
 #define MAX_NUM_PROCS 100
 
