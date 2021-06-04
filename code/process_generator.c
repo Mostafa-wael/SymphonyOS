@@ -121,7 +121,7 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         int currentTime = getClk();
         if (currentTime != prevTime) // add this condition to avoid printing the time a lot
         {
-            printf("ProcessGenerator : Current Time is %d\n", currentTime);
+            // printf("ProcessGenerator : Current Time is %d\n", currentTime);
             if (procTable[current_index].arrivaltime == currentTime)
             {
                 while (procTable[current_index].arrivaltime == currentTime)
@@ -137,7 +137,7 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
                     else
                     {
                         (*MsgQIDsz)++;
-                        printf("ProcessGenerator : %d, %d, %d, %d\n",
+                        printf("ProcessGenerator: it is, %d, %d, %d, %d\n",
                                procTable[current_index].id,
                                procTable[current_index].arrivaltime,
                                procTable[current_index].runningtime,

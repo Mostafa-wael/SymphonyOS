@@ -50,7 +50,7 @@ int main(int argc, char *argv[])
     void (*algos_ptrs[5])(void);
     algos_ptrs[0] = first_come_first_serve;
     algos_ptrs[1] = NULL;
-    algos_ptrs[2] = NULL;
+    algos_ptrs[2] = PreemptiveHighestPriorityFirst;
     algos_ptrs[3] = NULL;
     algos_ptrs[4] = round_robin;
 
@@ -159,7 +159,17 @@ void round_robin(void)
         }
     }
 }
-
+void PreemptiveHighestPriorityFirst(void)
+{
+    while(1)
+    {
+        for (int i = 0; i < arrivalQ.num_processes; i++)
+        {
+         if (arrivalQ.processes[i].id == -1)
+                continue;   
+        }
+    }
+}
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Utilities *****************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -193,7 +203,7 @@ void on_process_complete_awake(int signum)
 void free_resources(int signum)
 {
     fclose(LogFile);
-    printf("Schduler: I managed to close the log file");
+    printf("Schduler: I managed to close the log file\n");
     exit(0);
 }
 /**
