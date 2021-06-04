@@ -1,5 +1,5 @@
 #include "headers.h"
-
+#include "min_heap.h"
 int MsgQID;
 int *MsgQIDsz;
 bool process_completed;
@@ -16,6 +16,7 @@ struct
 //************************************ Functions Prototypes ***********************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
 void first_come_first_serve(void);
+void PreemptiveHighestPriorityFirst(void);
 void round_robin(void);
 //
 void on_msgqfull_handler(int);

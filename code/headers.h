@@ -27,6 +27,9 @@ typedef short bool;
 
 #define MAX_NUM_PROCS 100
 
+
+//**************************************************************** Clock ****************************************************************//
+
 ///==============================
 //don't mess with this variable//
 int *shmaddr; //
@@ -61,7 +64,6 @@ void initClk()
  * Input: terminateAll: a flag to indicate whether that this is the end of simulation.
  *                      It terminates the whole system and releases resources.
 */
-
 void destroyClk(bool terminateAll)
 {
     shmdt(shmaddr);
@@ -77,7 +79,7 @@ struct msgbuff // the message format
     long mtype;
     comingProcess currentProcess;
 };
-
+//**************************************************************** Utilities ****************************************************************//
 enum proc_state 
 {
     READY,
@@ -92,3 +94,80 @@ struct proc
     enum proc_state state;
 };
 typedef struct proc proc;
+
+//**************************************************************** Min Heap ****************************************************************//
+#define leftChild(i) (2 * i + 1)
+#define rightChild(i) (2 * i + 2)
+#define parent(i) ((i - 1) / 2)
+
+struct heap_node
+{   
+    proc* process;
+    int key;
+};
+typedef struct heap_node heap_node;
+struct min_heap
+{
+    heap_node* heap[MAX_NUM_PROCS];
+    int size;
+};
+typedef struct min_heap min_heap;
+
+void min_heap_insert(min_heap *m, heap_node *n)
+{
+    if (m->size == MAX_NUM_PROCS)
+    {
+        //error
+    }
+    int index = m->size;
+    m->size++;
+    m->heap[index] = n;
+
+    while (index != 0 && m->heap[parent(index)]->key > m->heap[index]->key)
+    {
+        heap_node* temp = m->heap[index];
+        m->heap[index] = m->heap[parent(index)];
+        m->heap[parent(index)] = temp;
+        index = parent(index);
+    }
+}
+
+void min_heapify(min_heap* m, int i)
+{
+    int left = leftChild(i);
+    int right = rightChild(i);
+    int min = i;
+
+    if (left < m->size && min < m->size && m->heap[left]->key < m->heap[min]->key)
+    {
+        min = left;
+    }
+    if (right < m->size && right < m->size && m->heap[right]->key < m->heap[min]->key)
+    {
+        min = right;
+    }
+    if (min != i)
+    {
+        heap_node* temp = m->heap[i];
+        m->heap[i] = m->heap[min];
+        m->heap[min] = temp;
+        min_heapify(m, min);
+    }
+}
+
+heap_node* min_heap_extract(min_heap* m) // it affects the size of the heap, don't use it in a for loop depending on the size of the heap
+{
+    if (m->size == 1)
+    {
+        m->size = 0;
+        return m->heap[0];
+    }
+
+    heap_node* root = m->heap[0];
+    m->heap[0] = m->heap[m->size - 1];
+    m->size--;
+    min_heapify(m, 0);
+    return root;
+}
+
+
