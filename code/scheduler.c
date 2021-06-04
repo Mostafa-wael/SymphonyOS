@@ -17,6 +17,7 @@ struct
 void first_come_first_serve(void);
 void PreemptiveHighestPriorityFirst(void);
 void round_robin(void);
+void shortest_job_first(void);
 //
 void on_msgqfull_handler(int);
 void on_process_complete_awake(int);
@@ -49,7 +50,7 @@ int main(int argc, char *argv[])
     // detemine the scheduling algorithm, using function pointers
     void (*algos_ptrs[5])(void);
     algos_ptrs[0] = first_come_first_serve;
-    algos_ptrs[1] = NULL;
+    algos_ptrs[1] = shortest_job_first;
     algos_ptrs[2] = PreemptiveHighestPriorityFirst;
     algos_ptrs[3] = NULL;
     algos_ptrs[4] = round_robin;
@@ -170,6 +171,48 @@ void PreemptiveHighestPriorityFirst(void)
         }
     }
 }
+
+
+void shortest_job_first(void)
+{
+    min_heap priority_queue;
+
+    while(true)
+    {
+        for (int i = 0; i < arrivalQ.num_processes; i++)
+        {
+            if (arrivalQ.processes[i].state != READY)
+            {
+                continue;
+            }    
+
+            //creating a new heap node and setting its priority to running time (shortest running time first)
+            heap_node* node = (heap_node*)malloc(sizeof(heap_node));
+            node->process = &arrivalQ.processes[i];
+            node->key = node->process->runt;
+            node->process->state = RUNNING;
+            min_heap_insert(&priority_queue, node);
+            fprintf(LogFile, "added to min heap process#%d at time %d\n", node->process->id, getClk());
+        }
+
+        if (priority_queue.size > 0)   //there are processes to be scheduled
+        {
+            proc* process = min_heap_extract(&priority_queue)->process;
+            fork_process(process->runt);
+        
+            process_completed = false;
+            while (!process_completed)
+            {
+                sleep(__INT_MAX__);
+            }
+            process->state = FINISHED;
+            fprintf(LogFile, "process #%d finished at time %d\n", process->id, getClk());
+        }  
+
+    }
+}
+
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Utilities *****************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////

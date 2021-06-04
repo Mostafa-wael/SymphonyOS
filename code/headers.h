@@ -83,7 +83,9 @@ struct msgbuff // the message format
 enum proc_state 
 {
     READY,
-    SUSPENDED
+    SUSPENDED,
+    RUNNING,
+    FINISHED
 };
 struct proc
 {
