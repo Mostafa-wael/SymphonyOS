@@ -68,14 +68,22 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     //****************************************************************
     // 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list.
     char *chosen_algorithm = argv[2];
-    char *additionalParameters = argv[3]; // like quantum in case of RR
+    char *additionalParameters ;
+    //only read a second argument if it was RR
+    if(strcmp(chosen_algorithm,"5") == 0)
+        additionalParameters = argv[3]; 
+    else 
+        additionalParameters = "GARBAGE";
+
     printf("%s", chosen_algorithm);
     // 3. Initiate and create the scheduler and clock processes.
     int pidSch = fork();
     if (pidSch == 0)
     {
         printf("ProcessGenerator : I have started the scheduler");
-        char *arr[] = {chosen_algorithm, additionalParameters, NULL};
+        char buff[18];
+        sprintf(buff,"%u",number_processes);
+        char *arr[] = {chosen_algorithm, additionalParameters, buff,NULL};
         execv("./scheduler.out", arr);
     }
     int pidCLK = fork();

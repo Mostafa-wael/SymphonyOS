@@ -3,10 +3,7 @@
 // this file is responsible for simulating the process as if it is running
 int remainingtime;    // until the process finishes
 bool process_running; // runnung or not
-
-void on_interruption_sleep(int);
-void on_resumption_awaken(int);
-
+int process_interrupt_semaphores ; //scheduler writes to this set to set process_running
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Main loop *****************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -15,11 +12,12 @@ int main(int agrc, char *argv[])
     initClk();
 
     remainingtime = atoi(argv[0]); // take the remaining time as an argumnet 
-
-    signal(SIGUSR1, on_interruption_sleep); // make the process sleep if it has recieved a sleeping signal 
-    signal(SIGUSR2, on_resumption_awaken); // awaking the process if it has recieved an awaken signal
+    int id = atoi(argv[1]);
+   
     process_running = true;
 
+    process_interrupt_semaphores = semget(ftok("keyfile",SEMSGKEY),100,0444|IPC_CREAT);
+    FILE* DEBUG = fopen("proclog.log","a");
     int prev = getClk();
     while (remainingtime > 0) // decremnt the remaining time every one clock tick
     {
@@ -27,12 +25,18 @@ int main(int agrc, char *argv[])
 
         if (prev != curr)
         {
+            process_running = getSemaphoreValue(process_interrupt_semaphores,id);
+
             if (process_running)
                 remainingtime--;
-
+            
+            fprintf(DEBUG,"\n---P%d : at %d rem %d PR=%d\n---",id,getClk(),remainingtime,process_running);
+            
             prev = curr;
         }
+        
     }
+    fclose(DEBUG);
     kill(getppid(), SIGUSR2); // mark the process as complete when its remaining time is zero!
     printf("Process: a process has finished\n");
 
@@ -44,13 +48,3 @@ int main(int agrc, char *argv[])
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Utilities *****************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
-void on_interruption_sleep(int signum) // make the process sleep if it has recieved a sleeping signal 
-{
-    process_running = false;
-    signal(SIGUSR1, on_interruption_sleep);
-}
-void on_resumption_awaken(int signum) // awaking the process if it has recieved an awaken signal
-{
-    process_running = true;
-    signal(SIGUSR2, on_resumption_awaken);
-}

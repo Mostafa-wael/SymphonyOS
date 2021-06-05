@@ -24,6 +24,7 @@ typedef short bool;
 #define SHKEY 300
 #define SHMSGKEY 'S'
 #define MSGSGKEY 'M'
+#define SEMSGKEY 'L'
 
 #define MAX_NUM_PROCS 100
 
@@ -83,9 +84,7 @@ struct msgbuff // the message format
 enum proc_state 
 {
     READY,
-    SUSPENDED,
-    RUNNING,
-    FINISHED
+    SUSPENDED
 };
 struct proc
 {
@@ -93,7 +92,6 @@ struct proc
     int arrt;
     int runt;
     int priorty;
-    int start_time;
     enum proc_state state;
 };
 typedef struct proc proc;
@@ -173,4 +171,28 @@ heap_node* min_heap_extract(min_heap* m) // it affects the size of the heap, don
     return root;
 }
 
+//***********************************************************Semaphores*******************************
+union Semun
+{
+    int val;               /* value for SETVAL */
+    struct semid_ds *buf;  /* buffer for IPC_STAT & IPC_SET */
+    ushort *array;         /* array for GETALL & SETALL */
+    struct seminfo *__buf; /* buffer for IPC_INFO */
+    void *__pad;
+};
 
+int getSemaphoreValue(int semSetID, int semIdx){
+    return semctl(semSetID,semIdx,GETVAL);
+}
+
+int clearSemaphoreValue(int semSetID,int semIdx){
+    union Semun semun ;
+    semun.val = 0;
+    return semctl(semSetID, semIdx, SETVAL, semun);
+}
+
+int setSemaphoreValue(int semSetID, int semIdx){
+    union Semun semun ;
+    semun.val = 1;
+    return semctl(semSetID, semIdx, SETVAL, semun);
+}
