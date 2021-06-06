@@ -20,17 +20,19 @@
 /////////////////////////////////////////////////////////////////////////////////////////////////
 int MsgQID;
 int *MsgQIDsz;
+int process_interrupt_shmid; //scheduler writes to this set to set process_running
+int process_remaining_shmid; //process writes to this to inform the scheduler of it's remaining time
+char* process_interrupt_flags ;
+char* process_remaining_flags ;
 
+int RR_quanta; 
 bool process_completed;
+
 FILE *LogFile;
-
-int process_interrupt_semaphores ;
-int RR_quanta;
-
 int total_wait = 0;
 float total_WTA = 0.0;
-
 int max_num_processes ;
+
 struct
 {
     struct proc *processes;
@@ -44,14 +46,13 @@ struct
 void first_come_first_serve(void);
 void PreemptiveHighestPriorityFirst(void);
 void round_robin(void);
-void shortest_remaining_time_next(void);
-void shortest_job_first(void);
 //
 void on_msgqfull_handler(int);
 void on_process_complete_awake(int);
+
 pid_t fork_process(int,int);
 void free_resources(int);
-void recieve_proc();
+void recieve_process();
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Main loop *****************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -61,7 +62,11 @@ int main(int argc, char *argv[])
     MsgQID = msgget(ftok("keyfile", MSGSGKEY), 0666 | IPC_CREAT);
     int MsqQIDszSHMID = shmget(ftok("keyfile", SHMSGKEY), 4, 0666 | IPC_CREAT);
     MsgQIDsz = (int *)shmat(MsqQIDszSHMID, NULL, 0);
-    process_interrupt_semaphores = semget(ftok("keyfile",SEMSGKEY),100,0666|IPC_CREAT);
+
+    process_interrupt_shmid = shmget(ftok("keyfile",'Y'),MAX_NUM_PROCS,0666|IPC_CREAT);
+    process_remaining_shmid = shmget(ftok("keyfile",'R'),MAX_NUM_PROCS,0666|IPC_CREAT);
+    process_interrupt_flags = (char*)shmat(process_interrupt_shmid,NULL,0);
+    process_remaining_flags = (char*)shmat(process_remaining_shmid,NULL,0);
 
     // initiating the arrival queue
     arrivalQ.processes = (struct proc *)malloc(MAX_NUM_PROCS * sizeof(struct proc));
@@ -78,9 +83,9 @@ int main(int argc, char *argv[])
     // detemine the scheduling algorithm, using function pointers
     void (*algos_ptrs[5])(void);
     algos_ptrs[0] = first_come_first_serve;
-    algos_ptrs[1] = shortest_job_first;
+    algos_ptrs[1] = NULL;
     algos_ptrs[2] = PreemptiveHighestPriorityFirst;
-    algos_ptrs[3] = shortest_remaining_time_next;
+    algos_ptrs[3] = NULL;
     algos_ptrs[4] = round_robin;
 
     // initiating the scheduler
@@ -123,7 +128,6 @@ void first_come_first_serve(void)
             if (arrivalQ.processes[i].id == -1)
                 continue;
 
-            setSemaphoreValue(process_interrupt_semaphores,arrivalQ.processes[i].id);
             int wait = getClk() - arrivalQ.processes[i].arrt ;
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
                             getClk(),                              //At time 
@@ -181,9 +185,8 @@ void round_robin(void)
                 continue;
 
             all_processes_finished = false ;
+            *(process_interrupt_flags+arrivalQ.processes[i].id) = false ;
             process_completed = false;
-            setSemaphoreValue(process_interrupt_semaphores,arrivalQ.processes[i].id);
-
             if (arrivalQ.processes[i].state == READY)
             {
                 Waits[i] = getClk() - arrivalQ.processes[i].arrt; 
@@ -210,36 +213,36 @@ void round_robin(void)
                             remaining_times[i],                    //remain
                             Waits[i]                               //wait
                             ); 
+                kill(PIDS[i],SIGCONT);
             }
 
-            int curr_time = getClk();
-            while (getClk() - curr_time < RR_quanta)
-            {
-                if (process_completed)
-                {
-                    fprintf(LogFile, "\n#process %d signalled completion before quanta end#\n--\n", arrivalQ.processes[i].id);
-                    break;
-                }
+            int curr = getClk();
+            while(getClk()-curr != RR_quanta && !process_completed){
+                *(process_remaining_flags+arrivalQ.processes[i].id) = -1;
             }
 
-            remaining_times[i] -= getClk()-curr_time;
-            clearSemaphoreValue(process_interrupt_semaphores,arrivalQ.processes[i].id);
+            *(process_interrupt_flags+arrivalQ.processes[i].id) = true ;
+            while(*(process_remaining_flags+arrivalQ.processes[i].id) == -1);
+            
+            remaining_times[i] = *(process_remaining_flags+arrivalQ.processes[i].id);
 
-            if (remaining_times[i] <= 0)
+            if (remaining_times[i] == 0)
             {
-                while (!process_completed)
-                    ;
-
-                int TA ;
+                printf("Scheduler : rem for process %d dropped to zero \n reaping flag\n",arrivalQ.processes[i].id);
+                //reap the proess_completed flag
+                while(!process_completed);
+                printf("\nReaped process %d",arrivalQ.processes[i].id);
+                int TA    = getClk()-arrivalQ.processes[i].arrt;
+                float WTA = ((float)TA)/arrivalQ.processes[i].runt;
                 fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT, 
-                            getClk(),                                        //At time 
+                            getClk(),                                  //At time 
                             arrivalQ.processes[i].id,"finished",             //process finished
                             arrivalQ.processes[i].arrt,                      //arrival 
                             arrivalQ.processes[i].runt,                      //total
-                            remaining_times[i],                              //remain
+                            0,                                               //remain
                             Waits[i],                                        //wait
-                            (TA = getClk()-arrivalQ.processes[i].arrt),      //TA
-                            ((float)TA)/arrivalQ.processes[i].runt           //WTA
+                            TA,                                              //TA
+                            WTA                                              //WTA
                             ); 
                 arrivalQ.processes[i].id = -1;
             }
@@ -253,51 +256,13 @@ void round_robin(void)
                             remaining_times[i],                    //remain
                             Waits[i]                               //wait
                             ); 
-
                 last_interrupt_timestamps[i] = getClk();
                 arrivalQ.processes[i].state = SUSPENDED;
             }
         }
+
+
         if(all_processes_finished && arrivalQ.num_processes == max_num_processes) kill(getppid(),SIGINT);
-    }
-}
-void shortest_job_first(void)
-{
-    min_heap priority_queue;
-
-    while(true)
-    {
-        for (int i = 0; i < arrivalQ.num_processes; i++)
-        {
-            if (arrivalQ.processes[i].state != READY)
-            {
-                continue;
-            }    
-
-            //creating a new heap node and setting its priority to running time (shortest running time first)
-            heap_node* node = (heap_node*)malloc(sizeof(heap_node));
-            node->process = &arrivalQ.processes[i];
-            node->key = node->process->runt;
-            node->process->state = RUNNING;
-            min_heap_insert(&priority_queue, node);
-            fprintf(LogFile, "added to min heap process#%d at time %d\n\n", node->process->id, getClk());
-        }
-
-        if (priority_queue.size > 0)   //there are processes to be scheduled
-        {
-            proc* process = min_heap_extract(&priority_queue)->process;
-            fork_process(process->runt, process->id);
-
-            process_completed = false;
-            while (!process_completed)
-            {
-                sleep(__INT_MAX__);
-            }
-            process->state = FINISHED;
-            process->finish_time = getClk();
-            fprintf(LogFile, "process #%d finished at time %d\n\n", process->id, getClk());
-        }  
-
     }
 }
 void PreemptiveHighestPriorityFirst(void)
@@ -311,81 +276,6 @@ void PreemptiveHighestPriorityFirst(void)
         }
     }
 }
-void shortest_remaining_time_next(void)
-{
-    heap_node* running_process = NULL;   //keep the running process
-    min_heap priority_queue;
-    priority_queue.size = 0;
-    int prev_clock = 0;
-
-    while(true)
-    {
-        for (int i = 0; i < arrivalQ.num_processes; i++)
-        {
-            if (arrivalQ.processes[i].state != READY)   //no ready process
-            {
-                continue;
-            }    
-            //creating a new heap node and setting its priority to running time (shortest running time first)
-            heap_node* node = (heap_node*)malloc(sizeof(heap_node));       
-            node->process = &arrivalQ.processes[i];         
-            node->key = node->process->runt;         
-            node->process->state = RUNNING;      
-            min_heap_insert(&priority_queue, node);
-            fprintf(LogFile, "added to min heap: process#%d at time = %d\n\n", node->process->id, getClk());
-            
-            if (prev_clock + 1 == getClk())
-            {
-                prev_clock = getClk();
-                if (running_process == NULL && priority_queue.size > 0)      //there is no running process currently and the queue has nodes
-                {
-            running_process = min_heap_extract(&priority_queue);
-            running_process->process->start_time = getClk();
-            running_process->process->state = RUNNING;
-            fprintf(LogFile, "run (and remove from the heap) process#%d at time = %d\n\n", running_process->process->id, getClk());
-            fork_process(running_process->process->runt, running_process->process->id);
-        }
-        else
-        {
-            //fprintf(LogFile, "running process#%d, expected finish time = %d\n", running_process->id, running_process->start_time + running_process->runt);
-            if (running_process != NULL && running_process->process->start_time + running_process->process->runt == getClk()) //check if the running process is finished
-            {   
-                if (running_process->process->state != FINISHED)
-                {
-                    fprintf(LogFile, "process #%d finished at time = %d\n\n", running_process->process->id, getClk());
-                }
-                running_process->process->state = FINISHED;
-                running_process->process->finish_time = getClk();
-                running_process = NULL;
-            }
-            // fprintf(LogFile, "running process runtime = %d\n", running_process->runt);
-            // fprintf(LogFile, "minimum runtime in the heap = %d, id = %d\n", priority_queue.heap[0]->process->runt, priority_queue.heap[0]->process->id);
-            // fprintf(LogFile, "running = %d\n", running);
-            if (running_process != NULL && priority_queue.size > 0 && priority_queue.heap[0]->process->runt < running_process->process->runt - (getClk() - running_process->process->start_time))
-            {
-                //preempt
-                heap_node* new_running_node;
-                new_running_node = min_heap_extract(&priority_queue);
-                new_running_node->process->start_time = getClk();
-                new_running_node->process->state = RUNNING;
-
-                fprintf(LogFile, "run process#%d (extract from the min heap) ", new_running_node->process->id);
-
-                heap_node* temp_node;
-                running_process->process->state = READY;
-                running_process->process->runt = running_process->process->runt - (getClk() - running_process->process->start_time);
-                temp_node = running_process;
-                temp_node->key = temp_node->process->runt;
-
-                running_process = new_running_node;
-                fprintf(LogFile, "--- add process#%d to min heap at time = %d (preemption)\n\n", temp_node->process->id, getClk());
-            }
-        } 
-            }
-        }
-    }
-}
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Utilities *****************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -398,7 +288,7 @@ void on_msgqfull_handler(int signum)
 {
     printf("Scheduler: I have received a signal that %d processes was sent\n", (*MsgQIDsz));
     for (; (*MsgQIDsz) > 0; (*MsgQIDsz)--)
-        recieve_proc();
+        recieve_process();
 
     signal(SIGUSR1, on_msgqfull_handler);
 }
@@ -409,9 +299,10 @@ void on_msgqfull_handler(int signum)
 void on_process_complete_awake(int signum)
 {
     process_completed = true;
-    printf("Schduler: a process has finished");
+    //printf("Schduler: a process has finished");
     signal(SIGUSR2, on_process_complete_awake);
 }
+
 /**
  * @brief free resources by closing the log file
  * @param signum 
@@ -429,7 +320,9 @@ void free_resources(int signum)
     fprintf(LogFile,"Avg Waiting=%.2f\n",total_wait/((float)arrivalQ.num_processes));
     fclose(LogFile);
 
-    semctl(process_interrupt_semaphores,-1/*Ignored*/,IPC_RMID);
+    shmctl(process_interrupt_shmid,IPC_RMID,NULL);
+    shmctl(process_remaining_shmid,IPC_RMID,NULL);
+
     printf("Schduler: I managed to close the log file\n");
     exit(0);
 }
@@ -437,7 +330,7 @@ void free_resources(int signum)
  * @brief recieve new processes from the message queue, as long as the PCB table is not full,
  * in case that the PCB table is full, it ignores the recieved process.
  */
-void recieve_proc()
+void recieve_process()
 {
     struct msgbuff reply;
     // recieve the size of the process only, not the message type-which is of type long-
@@ -449,7 +342,7 @@ void recieve_proc()
     }
     else
     {
-        printf("Scheduler: process was recieved successfully\n");
+        //printf("Scheduler: process was recieved successfully\n");
     }
     if (arrivalQ.num_processes < arrivalQ.capacity) // check if there is space for a new process
     {
