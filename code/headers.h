@@ -84,7 +84,9 @@ struct msgbuff // the message format
 enum proc_state 
 {
     READY,
-    SUSPENDED
+    SUSPENDED,
+    RUNNING,
+    FINISHED
 };
 struct proc
 {
@@ -92,6 +94,8 @@ struct proc
     int arrt;
     int runt;
     int priorty;
+    int start_time;
+    int finish_time;
     enum proc_state state;
 };
 typedef struct proc proc;
