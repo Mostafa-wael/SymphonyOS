@@ -26,25 +26,24 @@ int main(int agrc, char *argv[])
     bool process_stopped = false ;
     while (remainingtime > 0) // decremnt the remaining time every one clock tick
     {
+        for(int i = 0; i<10; i++) {
+            process_stopped = *(process_interrupt_flags+id);
+            if(process_stopped) {
+                fprintf(DEBUG,"P%d: at %d stopped, rem %d\n---\n",id,getClk(),remainingtime);
+
+                raise(SIGSTOP);
+
+                while(process_stopped) process_stopped = *(process_interrupt_flags+id);
+            }
+        }
+
         int curr = getClk();
         fprintf(DEBUG,"P%d: at %d currently running, rem %d\n---\n",id,curr,remainingtime);
 
         while(curr == getClk()) {
-            process_stopped = *(process_interrupt_flags+id);
-            if(process_stopped) break;
         }
         remainingtime--;
         *(process_remaining_flags+id) = remainingtime;
-        if(remainingtime == 0) break ;
-
-        for(int i = 0; i<10000; i++) process_stopped = *(process_interrupt_flags+id);
-        if(process_stopped = *(process_interrupt_flags+id)) {
-            fprintf(DEBUG,"P%d: at %d stopped, rem %d\n---\n",id,getClk(),remainingtime);
-
-            raise(SIGSTOP);
-
-            while(process_stopped = *(process_interrupt_flags+id));
-        }
     }
     fclose(DEBUG);
     kill(getppid(), SIGUSR2); // mark the process as complete when its remaining time is zero!

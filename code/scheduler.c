@@ -191,7 +191,7 @@ void round_robin(void)
             {
                 Waits[i] = getClk() - arrivalQ.processes[i].arrt; 
                 remaining_times[i] =  arrivalQ.processes[i].runt;
-
+                *(process_remaining_flags+arrivalQ.processes[i].id) = remaining_times[i];
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
                             getClk(),                              //At time 
                             arrivalQ.processes[i].id,"started",    //process started
@@ -216,15 +216,13 @@ void round_robin(void)
                 kill(PIDS[i],SIGCONT);
             }
 
-            int curr = getClk();
-            while(getClk()-curr != RR_quanta && !process_completed){
-                *(process_remaining_flags+arrivalQ.processes[i].id) = -1;
+            int old = remaining_times[i];
+            while( (old - remaining_times[i] != RR_quanta)
+                && !process_completed){
+                remaining_times[i] = *(process_remaining_flags+arrivalQ.processes[i].id);
             }
-
             *(process_interrupt_flags+arrivalQ.processes[i].id) = true ;
-            while(*(process_remaining_flags+arrivalQ.processes[i].id) == -1);
             
-            remaining_times[i] = *(process_remaining_flags+arrivalQ.processes[i].id);
 
             if (remaining_times[i] == 0)
             {
