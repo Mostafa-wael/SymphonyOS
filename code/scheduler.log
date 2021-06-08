@@ -1,26 +1,6 @@
-added to min heap: process#1 at time = 2
-
-run (and remove from the heap) process#1 at time = 2
-
-added to min heap: process#2 at time = 3
-
-run process#2 (extract from the min heap) --- add process#1 to min heap at time = 3 (preemption)
-
-added to min heap: process#1 at time = 3
-
-added to min heap: process#3 at time = 4
-
-run process#3 (extract from the min heap) --- add process#2 to min heap at time = 4 (preemption)
-
-added to min heap: process#2 at time = 4
-
-process #3 finished at time = 5
-
-run (and remove from the heap) process#2 at time = 5
-
-process #2 finished at time = 7
-
-run (and remove from the heap) process#1 at time = 7
-
-process #1 finished at time = 11
-
+At	time	2	process	3	started	arr	2	total	1	remain	1	wait	0
+At	time	3	process	3	finished	arr	2	total	1	remain	0	wait	0	TA	1	WTA	1.00
+At	time	3	process	2	started	arr	2	total	3	remain	3	wait	1
+At	time	6	process	2	finished	arr	2	total	3	remain	0	wait	1	TA	4	WTA	1.33
+At	time	6	process	1	started	arr	2	total	5	remain	5	wait	4
+At	time	11	process	1	finished	arr	2	total	5	remain	0	wait	4	TA	9	WTA	1.80

@@ -26,7 +26,7 @@ int main(int agrc, char *argv[])
     bool process_stopped = false ;
     while (remainingtime > 0) // decremnt the remaining time every one clock tick
     {
-        for(int i = 0; i<10; i++) {
+        for(int i = 0; i<1000; i++) {
             process_stopped = *(process_interrupt_flags+id);
             if(process_stopped) {
                 fprintf(DEBUG,"P%d: at %d stopped, rem %d\n---\n",id,getClk(),remainingtime);
