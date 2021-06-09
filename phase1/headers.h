@@ -31,7 +31,9 @@ typedef short bool;
 #define MAX_NUM_PROCS 100
 
 
-//**************************************************************** Clock ****************************************************************//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//****************************************** Clock *********************************************//
+/////////////////////////////////////////////////////////////////////////////////////////////////
 
 ///==============================
 //don't mess with this variable//
@@ -76,7 +78,9 @@ void destroyClk(bool terminateAll)
     }
 }
 
-//**************************************************************** Utilities ****************************************************************//
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//******************************************* Utilities *****************************************//
+/////////////////////////////////////////////////////////////////////////////////////////////////
 enum proc_state 
 {
     READY,
@@ -84,6 +88,10 @@ enum proc_state
     RUNNING,
     FINISHED
 };
+/**
+ * @brief represents the PCB
+ * 
+ */
 struct proc
 {
     int id;
@@ -97,18 +105,30 @@ struct proc
 };
 typedef struct proc proc;
 
-//**************************************************************** Message Queue ****************************************************************//
-typedef struct comingProcess comingProcess;
-struct msgbuff // the message format
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//****************************************** Message Queue *************************************//
+/////////////////////////////////////////////////////////////////////////////////////////////////
+/**
+ * @brief the message format-> mtype and a process
+ * 
+ */
+struct msgbuff 
 {
     long mtype;
     proc currentProcess;
 };
-//**************************************************************** Min Heap ****************************************************************//
+
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//********************************************* Min Heap ***************************************//
+/////////////////////////////////////////////////////////////////////////////////////////////////
 #define leftChild(i) (2 * i + 1)
 #define rightChild(i) (2 * i + 2)
 #define parent(i) ((i - 1) / 2)
 
+/**
+ * @brief the heap node which is a process and its key
+ * 
+ */
 struct heap_node
 {   
     proc* process;
@@ -116,6 +136,11 @@ struct heap_node
 };
 typedef struct heap_node heap_node;
 
+/**
+ * @brief a min heap of heap nodes
+ * 
+ * 
+ */
 struct min_heap
 {
     heap_node* heap[MAX_NUM_PROCS];
@@ -123,6 +148,12 @@ struct min_heap
 };
 typedef struct min_heap min_heap;
 
+/**
+ * @brief insert a heap node to the heap
+ * 
+ * @param m pointer to the min heap (priority queue)
+ * @param n the heap node which is a process and its key
+ */
 void min_heap_insert(min_heap *m, heap_node *n)
 {
     if (m->size == MAX_NUM_PROCS)
@@ -141,7 +172,12 @@ void min_heap_insert(min_heap *m, heap_node *n)
         index = parent(index);
     }
 }
-
+/**
+ * @brief to reorder the heap after extracting a heap node from it
+ * 
+ * @param m pointer to the min heap (priority queue)
+ * @param i index
+ */
 void min_heapify(min_heap* m, int i)
 {
     int left = leftChild(i);
@@ -165,6 +201,12 @@ void min_heapify(min_heap* m, int i)
     }
 }
 
+/**
+ * @brief extract the top node and removes it from the heap
+ * 
+ * @param m pointer to the min heap (priority queue)
+ * @return heap_node* 
+ */
 heap_node* min_heap_extract(min_heap* m) // it affects the size of the heap, don't use it in a for loop depending on the size of the heap
 {
     if (m->size == 1)
@@ -180,7 +222,9 @@ heap_node* min_heap_extract(min_heap* m) // it affects the size of the heap, don
     return root;
 }
 
-//***********************************************************Semaphores*******************************
+///////////////////////////////////////////////////////////////////////////////////////////////////
+//******************************************* Semaphores ***************************************//
+/////////////////////////////////////////////////////////////////////////////////////////////////
 union Semun
 {
     int val;               /* value for SETVAL */
@@ -189,12 +233,25 @@ union Semun
     struct seminfo *__buf; /* buffer for IPC_INFO */
     void *__pad;
 };
+/**
+ * @brief Get the Semaphore Value 
+ * 
+ * @param semSetID 
+ * @param semIdx 
+ * @return int 
+ */
 
 int getSemaphoreValue(int semSetID, int semIdx)
 {
     return semctl(semSetID,semIdx,GETVAL);
 }
-
+/**
+ * @brief clears the valu of a semaphore, sets it to 0
+ * 
+ * @param semSetID 
+ * @param semIdx 
+ * @return int 
+ */
 int clearSemaphoreValue(int semSetID,int semIdx)
 {
     union Semun semun ;
@@ -202,6 +259,13 @@ int clearSemaphoreValue(int semSetID,int semIdx)
     return semctl(semSetID, semIdx, SETVAL, semun);
 }
 
+/**
+ * @brief sets the valu of a semaphore, sets it to 1
+ * 
+ * @param semSetID 
+ * @param semIdx 
+ * @return int 
+ */
 int setSemaphoreValue(int semSetID, int semIdx)
 {
     union Semun semun ;
