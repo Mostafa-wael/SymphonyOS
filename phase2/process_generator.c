@@ -6,13 +6,17 @@ int MsqQIDszSHMID;
 
 int main(int argc, char *argv[]) // file name, scheduling algorithm
 {
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //************************************* 0. initializations *************************************//
+    /////////////////////////////////////////////////////////////////////////////////////////////////
     signal(SIGINT, clearResources);
     // test the passed arguments
-    printf("\nNumber of passed arguments to the process_generator is %d\n", argc);
+    printf("\nProcessGenerator: Number of recieved arguments is %d\n", argc);
     for (int i = 1; i < argc; i++)
         printf("passed argument number %d is: %s\n", i, argv[i]);
-    //****************************************************************
-    // 1. Read the input files and save them
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //************************** 1. Read the input files and save them******************************//
+    /////////////////////////////////////////////////////////////////////////////////////////////////
     char *FileName = argv[1];
     FILE *pFile;
     pFile = fopen(FileName, "r"); // read mode
@@ -22,31 +26,25 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         exit(EXIT_FAILURE);
     }
     //******************************
-    // int tableSize = 100;                                             // indicates the max arrival time
-    // comingProcess **procTable = createComingProcessTable(tableSize); // creates a table (hashmap) for the commingProcesses
-    char buff[50];
-    unsigned int number_processes = 0;
+    char buff[50];                     // line size
+    unsigned int number_processes = 0; // get the number of processes by reading the file
     while (fgets(buff, sizeof(buff), pFile) != NULL)
-    {
-        if (buff[0] != '#')
-            number_processes++;
-    }
+        number_processes++;
+    number_processes--; // because the first line is just a comment
+
     //check
-    printf("%d\n", number_processes);
+    printf("ProcessGenerator: number of proccesses is %d\n", number_processes);
+
+    // create array of processes
+    proc *procTable = (struct proc *)malloc(sizeof(struct proc) * number_processes);
 
     // return to beginning of the file again
     fseek(pFile, 0, SEEK_SET);
 
-    // create array of processes
-    comingProcess *procTable = (struct comingProcess *)malloc(sizeof(struct comingProcess) * number_processes);
-
+    fgets(buff, sizeof(buff), pFile); // as the first line is just a comment
     unsigned int index = 0;
-
     while (fgets(buff, sizeof(buff), pFile) != NULL)
     {
-        if (buff[0] == '#')
-            continue;
-
         sscanf(buff, "%d\t%d\t%d\t%d",
                &(procTable[index].id),
                &(procTable[index].arrivalTime),
@@ -56,34 +54,38 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         index++;
     }
     fclose(pFile);
+
     // print the processes
     printf("#id arrival runtime priority\n");
-
-    //check
     for (int i = 0; i < number_processes; i++)
     {
         printf("%d , %d ,%d , %d \n", procTable[i].id, procTable[i].arrivalTime, procTable[i].runningTime, procTable[i].priority);
     }
 
-    //****************************************************************
-    // 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list.
+    /////////////////////////////////////////////////////////////////////////////////////////////////////////////
+    //* 2. Read the chosen scheduling algorithm and its parameters, if there are any from the argument list*//
+    ///////////////////////////////////////////////////////////////////////////////////////////////////////////
+
     char *chosen_algorithm = argv[2];
-    char *additionalParameters ;
+    char *additionalParameters;
     //only read a second argument if it was RR
-    if(strcmp(chosen_algorithm,"5") == 0)
-        additionalParameters = argv[3]; 
-    else 
+    if (strcmp(chosen_algorithm, "5") == 0)
+        additionalParameters = argv[3];
+    else
         additionalParameters = "GARBAGE";
 
     printf("%s", chosen_algorithm);
-    // 3. Initiate and create the scheduler and clock processes.
+
+    //////////////////////////////////////////////////////////////////////////////////////////////////////
+    //*****************  3. Initiate and create the scheduler and clock processes ********************//
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
     int pidSch = fork();
     if (pidSch == 0)
     {
-        printf("ProcessGenerator : I have started the scheduler");
+        printf("ProcessGenerator: I have started the scheduler");
         char buff[18];
-        sprintf(buff,"%u",number_processes);
-        char *arr[] = {chosen_algorithm, additionalParameters, buff,NULL};
+        sprintf(buff, "%u", number_processes);
+        char *arr[] = {chosen_algorithm, additionalParameters, buff, NULL};
         execv("./scheduler.out", arr);
     }
     int pidCLK = fork();
@@ -93,11 +95,8 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         char *arr[] = {NULL};
         execv("./clk.out", arr);
     }
-    // create keys for the message queue
-    //key_t KeyID = ftok("keyfile", SHMSGKEY); // the key of the Queue
     // get the message queues
     MsgQID = msgget(ftok("keyfile", MSGSGKEY), 0666 | IPC_CREAT);
-    //create messageReceived queue and return id
     // check for any errors
     if (MsgQID == -1) // if messageid == -1, it failed to create the queue
     {
@@ -105,25 +104,29 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         exit(-1);
     }
 
-    // 4. Use this function after creating the clock process to initialize clock.
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //******** 4. Use this function after creating the clock process to initialize clock **********//
+    ///////////////////////////////////////////////////////////////////////////////////////////////
     initClk();
-    // TODO Generation Main Loop
-    //****************************************************************
-    // 5. Create a data structure for processes and provide it with its parameters.
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //********* 5. Create a data structure for processes and provide it with its parameters*********//
+    /////////////////////////////////////////////////////////////////////////////////////////////////
     // done while reading the file
+
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //*************6. Send the information to the scheduler at the appropriate time.*****************//
+    /////////////////////////////////////////////////////////////////////////////////////////////////
     //****************************************************************
-    // 6. Send the information to the scheduler at the appropriate time.
     struct msgbuff currentProcesses;
+    // shared memory indicating the current size of the message queue
     // shared memory 4 byte and id ftok keyfile 'M'
-    // int * msgqueue
     MsqQIDszSHMID = shmget(ftok("keyfile", SHMSGKEY), 4, 0666 | IPC_CREAT);
     int *MsgQIDsz = (int *)shmat(MsqQIDszSHMID, 0, 0);
     (*MsgQIDsz) = 0;
 
     int prevTime = getClk();
     unsigned int current_index = 0;
-    //procTable[number_processes-1].arrivalTime > getClk()
-
     while (1)
     {
         int currentTime = getClk();
@@ -159,11 +162,10 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
             prevTime = currentTime;
         }
     }
-    //
-    //
-    //
-    //****************************************************************s
-    // 7. Clear clock resources
+    ///////////////////////////////////////////////////////////////////////////////////////////////////
+    //*********************************** 7. Clear clock resources**********************************//
+    /////////////////////////////////////////////////////////////////////////////////////////////////
+    // 7. Clear clock resource
     destroyClk(true);
 }
 
