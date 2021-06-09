@@ -33,7 +33,7 @@ int max_num_processes;
 
 struct
 {
-    struct proc *processes;
+    struct proc *processes[MAX_NUM_PROCS];
     int num_processes;
     int capacity;
 } arrivalQ;
@@ -70,7 +70,6 @@ int main(int argc, char *argv[])
     process_remaining_flags = (char *)shmat(process_remaining_shmid, NULL, 0);
 
     // initiating the arrival queue
-    arrivalQ.processes = (struct proc *)malloc(MAX_NUM_PROCS * sizeof(struct proc));
     arrivalQ.capacity = MAX_NUM_PROCS;
     arrivalQ.num_processes = 0;
 
@@ -120,19 +119,19 @@ void first_come_first_serve(void)
     {
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
-            if (arrivalQ.processes[i].state != READY)
+            if (arrivalQ.processes[i]->state != READY)
                 continue;
 
-            int wait = getClk() - arrivalQ.processes[i].arrivalTime;
+            int wait = getClk() - arrivalQ.processes[i]->arrivalTime;
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                     getClk(),                            //At time
-                    arrivalQ.processes[i].id, "started", //process started
-                    arrivalQ.processes[i].arrivalTime,          //arrival
-                    arrivalQ.processes[i].runningTime,          //total
-                    arrivalQ.processes[i].runningTime,          //remain
+                    arrivalQ.processes[i]->id, "started", //process started
+                    arrivalQ.processes[i]->arrivalTime,          //arrival
+                    arrivalQ.processes[i]->runningTime,          //total
+                    arrivalQ.processes[i]->runningTime,          //remain
                     wait                                 //wait
             );
-            fork_process(arrivalQ.processes[i].runningTime, arrivalQ.processes[i].id);
+            fork_process(arrivalQ.processes[i]->runningTime, arrivalQ.processes[i]->id);
 
             //the sleep will not complete off course
             //but we are putting it in a while loop because it might be interrupted for a reason other
@@ -141,20 +140,20 @@ void first_come_first_serve(void)
             while (!process_completed)
                 sleep(__INT_MAX__);
 
-            int TA = getClk() - arrivalQ.processes[i].arrivalTime;
-            float WTA = ((float)TA) / ((float)arrivalQ.processes[i].runningTime);
+            int TA = getClk() - arrivalQ.processes[i]->arrivalTime;
+            float WTA = ((float)TA) / ((float)arrivalQ.processes[i]->runningTime);
             fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
                     getClk(),                             //At time
-                    arrivalQ.processes[i].id, "finished", //process started
-                    arrivalQ.processes[i].arrivalTime,           //arrival
-                    arrivalQ.processes[i].runningTime,           //total
+                    arrivalQ.processes[i]->id, "finished", //process started
+                    arrivalQ.processes[i]->arrivalTime,           //arrival
+                    arrivalQ.processes[i]->runningTime,           //total
                     0,                                    //remain
                     wait,                                 //wait
                     TA,                                   //TA
                     WTA                                   //WTA
             );
 
-            arrivalQ.processes[i].state = FINISHED;
+            arrivalQ.processes[i]->state = FINISHED;
 
             total_wait += wait;
             total_WTA += WTA;
@@ -174,7 +173,7 @@ void shortest_job_first(void)
     {
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
-            if (arrivalQ.processes[i].state != READY)
+            if (arrivalQ.processes[i]->state != READY)
             {
                 continue;
             }
@@ -254,7 +253,7 @@ void highest_priority_first(void)
         // add new ready processes to the priority queue
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
-            if (arrivalQ.processes[i].state != READY) // check for the ready processes only
+            if (arrivalQ.processes[i]->state != READY) // check for the ready processes only
                 continue;
 
             //creating a new heap node and setting its key to the process priority
@@ -264,9 +263,9 @@ void highest_priority_first(void)
             node->process->state = RUNNING;
             min_heap_insert(&priority_queue, node);
             // to be used to calculate CPU utilization
-            arrivalQ.processes[i].remaining_time = arrivalQ.processes[i].runningTime;
-            arrivalQ.processes[i].wait_time = 0;
-            printf("Schduler : I have added process %d, with priority %d to priority queue\n", arrivalQ.processes[i].id, arrivalQ.processes[i].priority);
+            arrivalQ.processes[i]->remaining_time = arrivalQ.processes[i]->runningTime;
+            arrivalQ.processes[i]->wait_time = 0;
+            printf("Schduler : I have added process %d, with priority %d to priority queue\n", arrivalQ.processes[i]->id, arrivalQ.processes[i]->priority);
         }
         int currentTime = getClk();
         // there is no running process, priority_queue is not empty (case 3)
@@ -402,15 +401,15 @@ void shortest_remaining_time_next(void)
     {
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
-            if (arrivalQ.processes[i].state != READY) //no ready process
+            if (arrivalQ.processes[i]->state != READY) //no ready process
             {
                 continue;
             }
 
             //creating a new heap node and setting its priority to running time (shortest running time first)
             heap_node *node = (heap_node *)malloc(sizeof(heap_node));
-            arrivalQ.processes[i].remaining_time = arrivalQ.processes[i].runningTime;
-            arrivalQ.processes[i].wait_time = 0;
+            arrivalQ.processes[i]->remaining_time = arrivalQ.processes[i]->runningTime;
+            arrivalQ.processes[i]->wait_time = 0;
             node->process = &arrivalQ.processes[i];
             node->key = node->process->remaining_time;
             node->process->state = RUNNING;
@@ -557,35 +556,35 @@ void round_robin(void)
         all_processes_finished = true;
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
-            if (arrivalQ.processes[i].id == -1)
+            if (arrivalQ.processes[i]->id == -1)
                 continue;
 
             all_processes_finished = false;
-            *(process_interrupt_flags + arrivalQ.processes[i].id) = false;
+            *(process_interrupt_flags + arrivalQ.processes[i]->id) = false;
             process_completed = false;
-            if (arrivalQ.processes[i].state == READY)
+            if (arrivalQ.processes[i]->state == READY)
             {
-                Waits[i] = getClk() - arrivalQ.processes[i].arrivalTime;
-                remaining_times[i] = arrivalQ.processes[i].runningTime;
-                *(process_remaining_flags + arrivalQ.processes[i].id) = remaining_times[i];
+                Waits[i] = getClk() - arrivalQ.processes[i]->arrivalTime;
+                remaining_times[i] = arrivalQ.processes[i]->runningTime;
+                *(process_remaining_flags + arrivalQ.processes[i]->id) = remaining_times[i];
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                         getClk(),                            //At time
-                        arrivalQ.processes[i].id, "started", //process started
-                        arrivalQ.processes[i].arrivalTime,          //arrival
-                        arrivalQ.processes[i].runningTime,          //total
+                        arrivalQ.processes[i]->id, "started", //process started
+                        arrivalQ.processes[i]->arrivalTime,          //arrival
+                        arrivalQ.processes[i]->runningTime,          //total
                         remaining_times[i],                  //remain
                         Waits[i]                             //wait
                 );
-                PIDS[i] = fork_process(arrivalQ.processes[i].runningTime, arrivalQ.processes[i].id);
+                PIDS[i] = fork_process(arrivalQ.processes[i]->runningTime, arrivalQ.processes[i]->id);
             }
             else
             {
                 Waits[i] += getClk() - last_interrupt_timestamps[i];
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                         getClk(),                                 //At time
-                        arrivalQ.processes[i].id, "resumedraise", //process resumed
-                        arrivalQ.processes[i].arrivalTime,               //arrival
-                        arrivalQ.processes[i].runningTime,               //total
+                        arrivalQ.processes[i]->id, "resumedraise", //process resumed
+                        arrivalQ.processes[i]->arrivalTime,               //arrival
+                        arrivalQ.processes[i]->runningTime,               //total
                         remaining_times[i],                       //remain
                         Waits[i]                                  //wait
                 );
@@ -595,43 +594,43 @@ void round_robin(void)
             int old = remaining_times[i];
             while ((old - remaining_times[i] != RR_quanta) && !process_completed)
             {
-                remaining_times[i] = *(process_remaining_flags + arrivalQ.processes[i].id);
+                remaining_times[i] = *(process_remaining_flags + arrivalQ.processes[i]->id);
             }
-            *(process_interrupt_flags + arrivalQ.processes[i].id) = true;
+            *(process_interrupt_flags + arrivalQ.processes[i]->id) = true;
 
             if (remaining_times[i] == 0)
             {
-                printf("Scheduler : rem for process %d dropped to zero \n reaping flag\n", arrivalQ.processes[i].id);
+                printf("Scheduler : rem for process %d dropped to zero \n reaping flag\n", arrivalQ.processes[i]->id);
                 //reap the proess_completed flag
                 while (!process_completed)
                     ;
-                printf("\nReaped process %d", arrivalQ.processes[i].id);
-                int TA = getClk() - arrivalQ.processes[i].arrivalTime;
-                float WTA = ((float)TA) / arrivalQ.processes[i].runningTime;
+                printf("\nReaped process %d", arrivalQ.processes[i]->id);
+                int TA = getClk() - arrivalQ.processes[i]->arrivalTime;
+                float WTA = ((float)TA) / arrivalQ.processes[i]->runningTime;
                 fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
                         getClk(),                             //At time
-                        arrivalQ.processes[i].id, "finished", //process finished
-                        arrivalQ.processes[i].arrivalTime,           //arrival
-                        arrivalQ.processes[i].runningTime,           //total
+                        arrivalQ.processes[i]->id, "finished", //process finished
+                        arrivalQ.processes[i]->arrivalTime,           //arrival
+                        arrivalQ.processes[i]->runningTime,           //total
                         0,                                    //remain
                         Waits[i],                             //wait
                         TA,                                   //TA
                         WTA                                   //WTA
                 );
-                arrivalQ.processes[i].id = -1;
+                arrivalQ.processes[i]->id = -1;
             }
             else
             {
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                         getClk(),                            //At time
-                        arrivalQ.processes[i].id, "stopped", //process stopped
-                        arrivalQ.processes[i].arrivalTime,          //arrival
-                        arrivalQ.processes[i].runningTime,          //total
+                        arrivalQ.processes[i]->id, "stopped", //process stopped
+                        arrivalQ.processes[i]->arrivalTime,          //arrival
+                        arrivalQ.processes[i]->runningTime,          //total
                         remaining_times[i],                  //remain
                         Waits[i]                             //wait
                 );
                 last_interrupt_timestamps[i] = getClk();
-                arrivalQ.processes[i].state = SUSPENDED;
+                arrivalQ.processes[i]->state = SUSPENDED;
             }
         }
 
@@ -679,7 +678,7 @@ void free_resources(int signum)
     int total_runtimes = 0;
 
     for (int i = 0; i < arrivalQ.num_processes; i++)
-        total_runtimes += arrivalQ.processes[i].runningTime;
+        total_runtimes += arrivalQ.processes[i]->runningTime;
 
     fprintf(LogFile, "CPU utilization=%.2f%%\n", ((float)total_runtimes) / (getClk() - 1) * 100);
     fprintf(LogFile, "Avg WTA=%.2f\n", total_WTA / arrivalQ.num_processes);
@@ -713,12 +712,13 @@ void recieve_process()
     if (arrivalQ.num_processes < arrivalQ.capacity) // check if there is space for a new process
     {
         // process paramerters
-        arrivalQ.processes[arrivalQ.num_processes].id = reply.currentProcess.id;
-        arrivalQ.processes[arrivalQ.num_processes].arrivalTime = reply.currentProcess.arrivalTime;
-        arrivalQ.processes[arrivalQ.num_processes].runningTime = reply.currentProcess.runningTime;
-        arrivalQ.processes[arrivalQ.num_processes].priority = reply.currentProcess.priority;
+        arrivalQ.processes[arrivalQ.num_processes] = (proc*)malloc(sizeof(proc));
+        arrivalQ.processes[arrivalQ.num_processes]->id = reply.currentProcess.id;
+        arrivalQ.processes[arrivalQ.num_processes]->arrivalTime = reply.currentProcess.arrivalTime;
+        arrivalQ.processes[arrivalQ.num_processes]->runningTime = reply.currentProcess.runningTime;
+        arrivalQ.processes[arrivalQ.num_processes]->priority = reply.currentProcess.priority;
         // set its state as ready
-        arrivalQ.processes[arrivalQ.num_processes].state = READY;
+        arrivalQ.processes[arrivalQ.num_processes]->state = READY;
         // inc the number of processes in the arrival queue
         arrivalQ.num_processes++;
     }
