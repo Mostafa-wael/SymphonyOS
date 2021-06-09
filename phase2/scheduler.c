@@ -9,7 +9,7 @@
 #define TOTAL__ "total\t%d\t"
 #define REMAIN__ "remain\t%d\t"
 #define WAIT__ "wait\t%d"
-#define SCHEDULER_LOG_NON_FINISH_LINE_FORMAT AT_TIME__ PROC__ "\t" ARR__ TOTAL__ REMAIN__ WAIT__ "\n"
+#define SCHEDULER_LOG_NON_FINISH_LINE_FORMAT AT_TIME__ PROC__ ARR__ TOTAL__ REMAIN__ WAIT__ "\n"
 #define SCHEDULER_LOG_FINISH_LINE_FORMAT AT_TIME__ PROC__ ARR__ TOTAL__ REMAIN__ WAIT__ "\tTA\t%d" \
                                                                                         "\tWTA\t%.2f\n"
 
@@ -38,7 +38,6 @@ struct
     int num_processes;
     int capacity;
 } arrivalQ;
-
 
 //
 int algo_idx, mem_idx;
@@ -82,7 +81,7 @@ struct freemem_list_t *freeList;
 void printMemFile(int time, int mem, int alofree, int id, int start, int end)
 {
     if (alofree == 1)
-        fprintf(MemFile, "\nAt\ttime\t %d \tallocated\t%d\tbytes\tfor process\t %dfrom %d \tto\t%d\n",
+        fprintf(MemFile, "At\ttime\t %d \tallocated\t %d \tbytes\tfor process\t%dfrom %d \tto\t %d\n",
                 time, //At time
                 mem,
                 id,    //total
@@ -90,7 +89,7 @@ void printMemFile(int time, int mem, int alofree, int id, int start, int end)
                 end    //wait
         );
     else
-        fprintf(MemFile, "\nAt\ttime\t%d\tfreed\t%d\tbytes\tfor process\t %dfrom%d\tto\t%d\n",
+        fprintf(MemFile, "At\ttime\t%d\tfreed\t%d\tbytes\tfor process\t%dfrom%d\tto\t%d\n",
                 time, //At time
                 mem,
                 id,    //total
@@ -123,10 +122,6 @@ int main(int argc, char *argv[])
     arrivalQ.capacity = max_num_processes;
     arrivalQ.num_processes = 0;
     arrivalQ.processes = (proc **)malloc(sizeof(proc *) * arrivalQ.capacity);
-    // initiating the waiting queue
-    waitingQ.capacity = max_num_processes;
-    waitingQ.num_processes = 0;
-    waitingQ.processes = (proc **)malloc(sizeof(proc *) * arrivalQ.capacity);
 
     // for RR
     process_interrupt_shmid = shmget(ftok("keyfile", 'Y'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
@@ -185,22 +180,26 @@ void first_come_first_serve(void)
 {
     while (1)
     {
+        int num_executed = 0;
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
-            if (arrivalQ.processes[i]->state != READY)
+            if (arrivalQ.processes[i]->id == -1)
                 continue;
 
             int startMemory = alloc_mem_ptrs[mem_idx](freeList, arrivalQ.processes[i]->mem);
             if (startMemory == -1)
             {
-                printf("Scheduler: No Space\n");
                 arrivalQ.processes[i]->state = WAITING;
-                waitingQ.processes[waitingQIdx++] = arrivalQ.processes[i];
             }
             else
             {
-                printf("Scheduler: Memory: %d\n", arrivalQ.processes[i]->mem);
-                printMemFile(getClk(), arrivalQ.processes[i]->mem, 1, arrivalQ.processes[i]->id, startMemory, startMemory + arrivalQ.processes[i]->mem);
+                num_executed++;
+                printMemFile(getClk(),
+                            arrivalQ.processes[i]->mem,
+                            1,
+                            arrivalQ.processes[i]->id,
+                            startMemory,
+                            startMemory+arrivalQ.processes[i]->mem);
 
                 int wait = getClk() - arrivalQ.processes[i]->arrivalTime;
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
@@ -233,15 +232,20 @@ void first_come_first_serve(void)
                         WTA                                    //WTA
                 );
 
+               printMemFile(getClk(),
+                            arrivalQ.processes[i]->mem,
+                            0,
+                            arrivalQ.processes[i]->id,
+                            startMemory,
+                            startMemory+arrivalQ.processes[i]->mem);
                 arrivalQ.processes[i]->state = FINISHED;
-                printMemFile(getClk(), arrivalQ.processes[i]->mem, 0, arrivalQ.processes[i]->id, startMemory, startMemory + arrivalQ.processes[i]->mem);
-
+                arrivalQ.processes[i]->id = -1;
                 dealloc_mem_ptrs[mem_idx](freeList, startMemory);
                 total_wait += wait;
                 total_WTA += WTA;
             }
         }
-        if (arrivalQ.num_processes == max_num_processes)
+        if (num_executed == max_num_processes)
             kill(getppid(), SIGINT);
     }
 }
@@ -301,7 +305,7 @@ void shortest_job_first(void)
                 executed_processes++;
                 running_node->process->state = FINISHED;
                 dealloc_mem_ptrs[mem_idx](freeList, startMemory);
-                printMemFile(getClk(), arrivalQ.processes[i]->mem, 0, arrivalQ.processes[i]->id, startMemory, startMemory + arrivalQ.processes[i]->mem);
+                printMemFile(getClk(),arrivalQ.processes[i]->mem, 0, arrivalQ.processes[i]->id, startMemory, startMemory + arrivalQ.processes[i]->mem);
 
                 int TA = getClk() - running_node->process->arrivalTime;
                 float WTA = ((float)TA) / ((float)running_node->process->runningTime);
@@ -828,7 +832,7 @@ void recieve_process()
         arrivalQ.processes[arrivalQ.num_processes]->arrivalTime = reply.currentProcess.arrivalTime;
         arrivalQ.processes[arrivalQ.num_processes]->runningTime = reply.currentProcess.runningTime;
         arrivalQ.processes[arrivalQ.num_processes]->priority = reply.currentProcess.priority;
-        arrivalQ.processes[arrivalQ.num_processes]->mem = reply.currentProcess.mem;
+        arrivalQ.processes[arrivalQ.num_processes]->mem      = reply.currentProcess.mem ;
         // set its state as ready
         arrivalQ.processes[arrivalQ.num_processes]->state = READY;
         // inc the number of processes in the arrival queue
