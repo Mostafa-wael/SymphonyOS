@@ -226,10 +226,6 @@ void shortest_job_first(void)
                     WTA                                 //WTA
                     ); 
         }  
-        if(arrivalQ.num_processes == max_num_processes) 
-        {
-            kill(getppid(), SIGINT);
-        }
     }
 }
 
