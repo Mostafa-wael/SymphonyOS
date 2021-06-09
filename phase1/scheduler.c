@@ -79,6 +79,12 @@ int main(int argc, char *argv[])
     arrivalQ.num_processes = 0;
     arrivalQ.processes = (proc **)malloc(sizeof(proc *) * arrivalQ.capacity);
 
+    // for RR
+    process_interrupt_shmid = shmget(ftok("keyfile", 'Y'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
+    process_remaining_shmid = shmget(ftok("keyfile", 'R'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
+    process_interrupt_flags = (char *)shmat(process_interrupt_shmid, NULL, 0);
+    process_remaining_flags = (char *)shmat(process_remaining_shmid, NULL, 0);
+
     // initiating the clock
     initClk();
 
@@ -102,15 +108,6 @@ int main(int argc, char *argv[])
         RR_quanta = atoi(argv[1]);
         printf("Schduler: RoundRobin Quantum is %s\n", argv[1]);
     }
-
-    //check
-    printf("Schduler: Max number of proccesses is %d, and the capacity is %d\n", max_num_processes, arrivalQ.capacity);
-
-    // for RR
-    process_interrupt_shmid = shmget(ftok("keyfile", 'Y'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
-    process_remaining_shmid = shmget(ftok("keyfile", 'R'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
-    process_interrupt_flags = (char *)shmat(process_interrupt_shmid, NULL, 0);
-    process_remaining_flags = (char *)shmat(process_remaining_shmid, NULL, 0);
 
     // run algorithm
     algos_ptrs[algo_idx]();
@@ -598,7 +595,7 @@ void round_robin(void)
                 Waits[i] += getClk() - last_interrupt_timestamps[i];
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                         getClk(),                                  //At time
-                        arrivalQ.processes[i]->id, "resumedraise", //process resumed
+                        arrivalQ.processes[i]->id, "resumed", //process resumed
                         arrivalQ.processes[i]->arrivalTime,        //arrival
                         arrivalQ.processes[i]->runningTime,        //total
                         remaining_times[i],                        //remain
@@ -700,11 +697,7 @@ void free_resources(int signum)
     fprintf(LogFile, "Avg WTA=%.2f\n", total_WTA / arrivalQ.num_processes);
     fprintf(LogFile, "Avg Waiting=%.2f\n", total_wait / ((float)arrivalQ.num_processes));
     fclose(LogFile);
-
-    for (int i = 0; i < arrivalQ.num_processes; i++)
-    {
-        free(arrivalQ.processes[i]);
-    }    
+ 
     shmctl(process_interrupt_shmid, IPC_RMID, NULL);
     shmctl(process_remaining_shmid, IPC_RMID, NULL);
 
