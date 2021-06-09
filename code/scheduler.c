@@ -1,20 +1,17 @@
 #include "headers.h"
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //************************************ #defines ***********************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
-//Remember : writing two strings next to each other is equivalent to concatenating them 
-//for example : printf("hello" "world") prints hello world to the console 
-
-//At time 1 process 1 started arr 1 total 6 remain 6 wait 0
-
 #define AT_TIME__ "At\ttime\t%d\t"
 #define PROC__    "process\t%d\t%s\t"
 #define ARR__     "arr\t%d\t"
 #define TOTAL__   "total\t%d\t"
 #define REMAIN__  "remain\t%d\t"
 #define WAIT__    "wait\t%d"
-#define SCHEDULER_LOG_NON_FINISH_LINE_FORMAT AT_TIME__ PROC__ ARR__ TOTAL__ REMAIN__ WAIT__ "\n"
+#define SCHEDULER_LOG_NON_FINISH_LINE_FORMAT AT_TIME__ PROC__ "\t" ARR__ TOTAL__ REMAIN__ WAIT__ "\n"
 #define SCHEDULER_LOG_FINISH_LINE_FORMAT     AT_TIME__ PROC__ ARR__ TOTAL__ REMAIN__ WAIT__ "\tTA\t%d" "\tWTA\t%.2f\n"
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //************************************ globals***********************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -31,7 +28,7 @@ bool process_completed;
 FILE *LogFile;
 int total_wait = 0;
 float total_WTA = 0.0;
-int max_num_processes ;
+int max_num_processes;
 
 struct
 {
@@ -44,19 +41,20 @@ struct
 //************************************ Functions Prototypes ***********************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
 void first_come_first_serve(void);
-void PreemptiveHighestPriorityFirst(void);
-void round_robin(void);
-void shortest_remaining_time_next(void);
 void shortest_job_first(void);
-//
+void highest_priority_first(void);
+void shortest_remaining_time_next(void);
+void round_robin(void);
+
 void on_msgqfull_handler(int);
 void on_process_complete_awake(int);
 
-pid_t fork_process(int,int);
+pid_t fork_process(int, int);
 void free_resources(int);
 void recieve_process();
+
 ///////////////////////////////////////////////////////////////////////////////////////////////////
-//****************************************** Main loop *****************************************//
+//****************************************** Main function *************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
 int main(int argc, char *argv[])
 {
@@ -86,7 +84,7 @@ int main(int argc, char *argv[])
     void (*algos_ptrs[5])(void);
     algos_ptrs[0] = first_come_first_serve;
     algos_ptrs[1] = shortest_job_first;
-    algos_ptrs[2] = PreemptiveHighestPriorityFirst;
+    algos_ptrs[2] = highest_priority_first;
     algos_ptrs[3] = shortest_remaining_time_next;
     algos_ptrs[4] = round_robin;
 
@@ -121,13 +119,14 @@ int main(int argc, char *argv[])
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //************************************ Scheduling Algorithms ***********************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
+
 void first_come_first_serve(void)
 {
     while (1)
     {
         for (int i = 0; i < arrivalQ.num_processes; i++)
         {
-            if (arrivalQ.processes[i].id == -1)
+            if (arrivalQ.processes[i].state != READY)
                 continue;
 
             int wait = getClk() - arrivalQ.processes[i].arrt ;
@@ -162,121 +161,12 @@ void first_come_first_serve(void)
                             ); 
 
 
-            arrivalQ.processes[i].id = -1;
+            arrivalQ.processes[i].state = FINISHED;
 
             total_wait += wait ;
             total_WTA  += WTA  ; 
         }
-        if(arrivalQ.num_processes == max_num_processes) kill(getppid(),SIGINT);
-    }
-}
-
-
-
-void round_robin(void)
-{
-    pid_t PIDS[MAX_NUM_PROCS];
-    int   Waits[MAX_NUM_PROCS];
-    int   last_interrupt_timestamps[MAX_NUM_PROCS];
-    int   remaining_times[MAX_NUM_PROCS];
-
-    bool all_processes_finished ;
-    while (1)
-    {
-        all_processes_finished = true ;
-        for (int i = 0; i < arrivalQ.num_processes; i++)
-        {
-            if (arrivalQ.processes[i].id == -1)
-                continue;
-
-            all_processes_finished = false ;
-            *(process_interrupt_flags+arrivalQ.processes[i].id) = false ;
-            process_completed = false;
-            if (arrivalQ.processes[i].state == READY)
-            {
-                Waits[i] = getClk() - arrivalQ.processes[i].arrt; 
-                remaining_times[i] =  arrivalQ.processes[i].runt;
-                *(process_remaining_flags+arrivalQ.processes[i].id) = remaining_times[i];
-                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
-                            getClk(),                              //At time 
-                            arrivalQ.processes[i].id,"started",    //process started
-                            arrivalQ.processes[i].arrt,            //arrival 
-                            arrivalQ.processes[i].runt,            //total
-                            remaining_times[i],                    //remain
-                            Waits[i]                               //wait
-                            ); 
-                PIDS[i] = fork_process(arrivalQ.processes[i].runt,arrivalQ.processes[i].id);
-            }
-            else
-            {
-                Waits[i] += getClk() - last_interrupt_timestamps[i];
-                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
-                            getClk(),                              //At time 
-                            arrivalQ.processes[i].id,"resumedraise",    //process resumed
-                            arrivalQ.processes[i].arrt,            //arrival 
-                            arrivalQ.processes[i].runt,            //total
-                            remaining_times[i],                    //remain
-                            Waits[i]                               //wait
-                            ); 
-                kill(PIDS[i],SIGCONT);
-            }
-
-            int old = remaining_times[i];
-            while( (old - remaining_times[i] != RR_quanta)
-                && !process_completed){
-                remaining_times[i] = *(process_remaining_flags+arrivalQ.processes[i].id);
-            }
-            *(process_interrupt_flags+arrivalQ.processes[i].id) = true ;
-            
-
-            if (remaining_times[i] == 0)
-            {
-                printf("Scheduler : rem for process %d dropped to zero \n reaping flag\n",arrivalQ.processes[i].id);
-                //reap the proess_completed flag
-                while(!process_completed);
-                printf("\nReaped process %d",arrivalQ.processes[i].id);
-                int TA    = getClk()-arrivalQ.processes[i].arrt;
-                float WTA = ((float)TA)/arrivalQ.processes[i].runt;
-                fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT, 
-                            getClk(),                                  //At time 
-                            arrivalQ.processes[i].id,"finished",             //process finished
-                            arrivalQ.processes[i].arrt,                      //arrival 
-                            arrivalQ.processes[i].runt,                      //total
-                            0,                                               //remain
-                            Waits[i],                                        //wait
-                            TA,                                              //TA
-                            WTA                                              //WTA
-                            ); 
-                arrivalQ.processes[i].id = -1;
-            }
-            else
-            {
-                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
-                            getClk(),                              //At time 
-                            arrivalQ.processes[i].id,"stopped",    //process stopped
-                            arrivalQ.processes[i].arrt,            //arrival 
-                            arrivalQ.processes[i].runt,            //total
-                            remaining_times[i],                    //remain
-                            Waits[i]                               //wait
-                            ); 
-                last_interrupt_timestamps[i] = getClk();
-                arrivalQ.processes[i].state = SUSPENDED;
-            }
-        }
-
-
-        if(all_processes_finished && arrivalQ.num_processes == max_num_processes) kill(getppid(),SIGINT);
-    }
-}
-void PreemptiveHighestPriorityFirst(void)
-{
-    while(1)
-    {
-        for (int i = 0; i < arrivalQ.num_processes; i++)
-        {
-         if (arrivalQ.processes[i].id == -1)
-                continue;   
-        }
+        if(arrivalQ.num_processes == max_num_processes) kill(getppid(), SIGINT);
     }
 }
 
@@ -284,6 +174,7 @@ void shortest_job_first(void)
 {
     min_heap priority_queue;
     priority_queue.size = 0;
+    int prev_clock = 0;
     
     while(true)
     {
@@ -317,11 +208,13 @@ void shortest_job_first(void)
 
             fork_process(process->runt, process->id);
             process_completed = false;
-            while (!process_completed)
+            while (!process_completed)  //wait for process to be completed
             {}
             process->state = FINISHED;
+            
             int TA = getClk() - process->arrt;
-            float WTA = ((float)TA)/((float)process->runt) ;
+            float WTA = ((float)TA) / ((float)process->runt);
+            
             fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
                     getClk(),                           //At time 
                     process->id,"finished",             //process started
@@ -333,9 +226,24 @@ void shortest_job_first(void)
                     WTA                                 //WTA
                     ); 
         }  
+        if(arrivalQ.num_processes == max_num_processes) 
+        {
+            kill(getppid(), SIGINT);
+        }
     }
 }
 
+void highest_priority_first(void)
+{
+    while(1)
+    {
+        for (int i = 0; i < arrivalQ.num_processes; i++)
+        {
+         if (arrivalQ.processes[i].id == -1)
+                continue;   
+        }
+    }
+}
 
 void shortest_remaining_time_next(void)
 {
@@ -443,7 +351,7 @@ void shortest_remaining_time_next(void)
 
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
                         getClk(),                                   //At time 
-                        running_node->process->id,"stopped",        //process stopped
+                        running_node->process->id, "stopped",       //process stopped
                         running_node->process->arrt,                //arrival 
                         running_node->process->runt,                //total
                         running_node->process->remaining_time,      //remain
@@ -488,7 +396,101 @@ void shortest_remaining_time_next(void)
     }
 }
 
+void round_robin(void)
+{
+    pid_t PIDS[MAX_NUM_PROCS];
+    int   Waits[MAX_NUM_PROCS];
+    int   last_interrupt_timestamps[MAX_NUM_PROCS];
+    int   remaining_times[MAX_NUM_PROCS];
 
+    bool all_processes_finished ;
+    while (1)
+    {
+        all_processes_finished = true ;
+        for (int i = 0; i < arrivalQ.num_processes; i++)
+        {
+            if (arrivalQ.processes[i].id == -1)
+                continue;
+
+            all_processes_finished = false ;
+            *(process_interrupt_flags+arrivalQ.processes[i].id) = false ;
+            process_completed = false;
+            if (arrivalQ.processes[i].state == READY)
+            {
+                Waits[i] = getClk() - arrivalQ.processes[i].arrt; 
+                remaining_times[i] =  arrivalQ.processes[i].runt;
+                *(process_remaining_flags+arrivalQ.processes[i].id) = remaining_times[i];
+                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
+                            getClk(),                              //At time 
+                            arrivalQ.processes[i].id,"started",    //process started
+                            arrivalQ.processes[i].arrt,            //arrival 
+                            arrivalQ.processes[i].runt,            //total
+                            remaining_times[i],                    //remain
+                            Waits[i]                               //wait
+                            ); 
+                PIDS[i] = fork_process(arrivalQ.processes[i].runt,arrivalQ.processes[i].id);
+            }
+            else
+            {
+                Waits[i] += getClk() - last_interrupt_timestamps[i];
+                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
+                            getClk(),                              //At time 
+                            arrivalQ.processes[i].id,"resumedraise",    //process resumed
+                            arrivalQ.processes[i].arrt,            //arrival 
+                            arrivalQ.processes[i].runt,            //total
+                            remaining_times[i],                    //remain
+                            Waits[i]                               //wait
+                            ); 
+                kill(PIDS[i],SIGCONT);
+            }
+
+            int old = remaining_times[i];
+            while( (old - remaining_times[i] != RR_quanta)
+                && !process_completed){
+                remaining_times[i] = *(process_remaining_flags+arrivalQ.processes[i].id);
+            }
+            *(process_interrupt_flags+arrivalQ.processes[i].id) = true ;
+            
+
+            if (remaining_times[i] == 0)
+            {
+                printf("Scheduler : rem for process %d dropped to zero \n reaping flag\n",arrivalQ.processes[i].id);
+                //reap the proess_completed flag
+                while(!process_completed);
+                printf("\nReaped process %d",arrivalQ.processes[i].id);
+                int TA    = getClk()-arrivalQ.processes[i].arrt;
+                float WTA = ((float)TA)/arrivalQ.processes[i].runt;
+                fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT, 
+                            getClk(),                                  //At time 
+                            arrivalQ.processes[i].id,"finished",             //process finished
+                            arrivalQ.processes[i].arrt,                      //arrival 
+                            arrivalQ.processes[i].runt,                      //total
+                            0,                                               //remain
+                            Waits[i],                                        //wait
+                            TA,                                              //TA
+                            WTA                                              //WTA
+                            ); 
+                arrivalQ.processes[i].id = -1;
+            }
+            else
+            {
+                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
+                            getClk(),                              //At time 
+                            arrivalQ.processes[i].id,"stopped",    //process stopped
+                            arrivalQ.processes[i].arrt,            //arrival 
+                            arrivalQ.processes[i].runt,            //total
+                            remaining_times[i],                    //remain
+                            Waits[i]                               //wait
+                            ); 
+                last_interrupt_timestamps[i] = getClk();
+                arrivalQ.processes[i].state = SUSPENDED;
+            }
+        }
+
+
+        if(all_processes_finished && arrivalQ.num_processes == max_num_processes) kill(getppid(),SIGINT);
+    }
+}
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Utilities *****************************************//

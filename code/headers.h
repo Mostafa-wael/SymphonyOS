@@ -10,12 +10,15 @@
 #include <stdlib.h>
 #include <unistd.h>
 #include <signal.h>
+
 // other utilities
 #include <stdio.h> //if you don't use scanf/printf change this include
 #include <string.h>
+
 // user defined libraries
 #include "queues.h"
 #include "processTable.h"
+
 // variables and defintions
 typedef short bool;
 #define true 1
@@ -74,7 +77,7 @@ void destroyClk(bool terminateAll)
     }
 }
 
-//**************************************************************** Message Queues ****************************************************************//
+//**************************************************************** Message Queue ****************************************************************//
 struct msgbuff // the message format
 {
     long mtype;
@@ -112,6 +115,7 @@ struct heap_node
     int key;
 };
 typedef struct heap_node heap_node;
+
 struct min_heap
 {
     heap_node* heap[MAX_NUM_PROCS];
@@ -186,17 +190,20 @@ union Semun
     void *__pad;
 };
 
-int getSemaphoreValue(int semSetID, int semIdx){
+int getSemaphoreValue(int semSetID, int semIdx)
+{
     return semctl(semSetID,semIdx,GETVAL);
 }
 
-int clearSemaphoreValue(int semSetID,int semIdx){
+int clearSemaphoreValue(int semSetID,int semIdx)
+{
     union Semun semun ;
     semun.val = 0;
     return semctl(semSetID, semIdx, SETVAL, semun);
 }
 
-int setSemaphoreValue(int semSetID, int semIdx){
+int setSemaphoreValue(int semSetID, int semIdx)
+{
     union Semun semun ;
     semun.val = 1;
     return semctl(semSetID, semIdx, SETVAL, semun);
