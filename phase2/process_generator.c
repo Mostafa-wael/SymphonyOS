@@ -45,21 +45,22 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     unsigned int index = 0;
     while (fgets(buff, sizeof(buff), pFile) != NULL)
     {
-        sscanf(buff, "%d\t%d\t%d\t%d",
+        sscanf(buff, "%d\t%d\t%d\t%d\t%d",
                &(procTable[index].id),
                &(procTable[index].arrivalTime),
                &(procTable[index].runningTime),
-               &(procTable[index].priority));
+               &(procTable[index].priority),
+               &(procTable[index].mem));
 
         index++;
     }
     fclose(pFile);
 
     // print the processes
-    printf("#id arrival runtime priority\n");
+    printf("#id arrival runtime priority memsize\n");
     for (int i = 0; i < number_processes; i++)
     {
-        printf("%d , %d ,%d , %d \n", procTable[i].id, procTable[i].arrivalTime, procTable[i].runningTime, procTable[i].priority);
+        printf("%d , %d ,%d , %d ,%d\n", procTable[i].id, procTable[i].arrivalTime, procTable[i].runningTime, procTable[i].priority,procTable[i].mem);
     }
 
     /////////////////////////////////////////////////////////////////////////////////////////////////////////////
@@ -148,11 +149,12 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
                     else
                     {
                         (*MsgQIDsz)++;
-                        printf("ProcessGenerator: it is, %d, %d, %d, %d\n",
+                        printf("ProcessGenerator: it is, %d, %d, %d, %d ,%d\n",
                                procTable[current_index].id,
                                procTable[current_index].arrivalTime,
                                procTable[current_index].runningTime,
-                               procTable[current_index].priority);
+                               procTable[current_index].priority,
+                               procTable[current_index].mem);
                     }
                     current_index++;
                 }
