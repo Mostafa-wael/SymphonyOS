@@ -21,5 +21,5 @@ test:
 	gcc process.c -o process.out
 	gcc process_generator.c -o process_generator.out
 	gcc test_generator.c -o test_generator.out 
-	# ./test_generator.out 
+	#./test_generator.out 
 	./process_generator.out processes.txt $(algo) $(q) # pass the algorithm and the quanta

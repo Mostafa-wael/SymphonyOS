@@ -28,7 +28,7 @@ typedef short bool;
 #define MSGSGKEY 'M'
 #define SEMSGKEY 'L'
 
-#define MAX_NUM_PROCS 100
+ #define MAX_NUM_PROCS 100
 
 
 ///////////////////////////////////////////////////////////////////////////////////////////////////
@@ -143,8 +143,9 @@ typedef struct heap_node heap_node;
  */
 struct min_heap
 {
-    heap_node* heap[MAX_NUM_PROCS];
+    heap_node**heap;
     int size;
+    int capacity;
 };
 typedef struct min_heap min_heap;
 
@@ -156,9 +157,9 @@ typedef struct min_heap min_heap;
  */
 void min_heap_insert(min_heap *m, heap_node *n)
 {
-    if (m->size == MAX_NUM_PROCS)
+    if (m->size >= m->capacity)
     {
-        //error
+        return;
     }
     int index = m->size;
     m->size++;

@@ -33,7 +33,7 @@ int max_num_processes;
 
 struct
 {
-    struct proc *processes[MAX_NUM_PROCS];
+    struct proc **processes;
     int num_processes;
     int capacity;
 } arrivalQ;
@@ -63,15 +63,6 @@ int main(int argc, char *argv[])
     MsgQID = msgget(ftok("keyfile", MSGSGKEY), 0666 | IPC_CREAT);
     int MsqQIDszSHMID = shmget(ftok("keyfile", SHMSGKEY), 4, 0666 | IPC_CREAT);
     MsgQIDsz = (int *)shmat(MsqQIDszSHMID, NULL, 0);
-
-    process_interrupt_shmid = shmget(ftok("keyfile", 'Y'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
-    process_remaining_shmid = shmget(ftok("keyfile", 'R'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
-    process_interrupt_flags = (char *)shmat(process_interrupt_shmid, NULL, 0);
-    process_remaining_flags = (char *)shmat(process_remaining_shmid, NULL, 0);
-
-    // initiating the arrival queue
-    arrivalQ.capacity = MAX_NUM_PROCS;
-    arrivalQ.num_processes = 0;
 
     // initiating signal handlers
     signal(SIGUSR1, on_msgqfull_handler);
@@ -107,6 +98,20 @@ int main(int argc, char *argv[])
         printf("Schduler: RoundRobin Quantum is %s\n", argv[1]);
     }
 
+    // initiating the arrival queue
+    arrivalQ.capacity = max_num_processes;
+    arrivalQ.num_processes = 0;
+    arrivalQ.processes = (proc **)malloc(sizeof(proc *) * arrivalQ.capacity);
+    //check
+    printf("Schduler: Max number of proccesses is %d, and the capacity is %d\n", max_num_processes, arrivalQ.capacity);
+
+    // for RR
+    process_interrupt_shmid = shmget(ftok("keyfile", 'Y'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
+    process_remaining_shmid = shmget(ftok("keyfile", 'R'), MAX_NUM_PROCS, 0666 | IPC_CREAT);
+    process_interrupt_flags = (char *)shmat(process_interrupt_shmid, NULL, 0);
+    process_remaining_flags = (char *)shmat(process_remaining_shmid, NULL, 0);
+
+    // run algorithm
     algos_ptrs[algo_idx]();
 }
 
@@ -124,12 +129,12 @@ void first_come_first_serve(void)
 
             int wait = getClk() - arrivalQ.processes[i]->arrivalTime;
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                    getClk(),                            //At time
+                    getClk(),                             //At time
                     arrivalQ.processes[i]->id, "started", //process started
-                    arrivalQ.processes[i]->arrivalTime,          //arrival
-                    arrivalQ.processes[i]->runningTime,          //total
-                    arrivalQ.processes[i]->runningTime,          //remain
-                    wait                                 //wait
+                    arrivalQ.processes[i]->arrivalTime,   //arrival
+                    arrivalQ.processes[i]->runningTime,   //total
+                    arrivalQ.processes[i]->runningTime,   //remain
+                    wait                                  //wait
             );
             fork_process(arrivalQ.processes[i]->runningTime, arrivalQ.processes[i]->id);
 
@@ -143,18 +148,17 @@ void first_come_first_serve(void)
             int TA = getClk() - arrivalQ.processes[i]->arrivalTime;
             float WTA = ((float)TA) / ((float)arrivalQ.processes[i]->runningTime);
             fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
-                    getClk(),                             //At time
+                    getClk(),                              //At time
                     arrivalQ.processes[i]->id, "finished", //process started
-                    arrivalQ.processes[i]->arrivalTime,           //arrival
-                    arrivalQ.processes[i]->runningTime,           //total
-                    0,                                    //remain
-                    wait,                                 //wait
-                    TA,                                   //TA
-                    WTA                                   //WTA
+                    arrivalQ.processes[i]->arrivalTime,    //arrival
+                    arrivalQ.processes[i]->runningTime,    //total
+                    0,                                     //remain
+                    wait,                                  //wait
+                    TA,                                    //TA
+                    WTA                                    //WTA
             );
 
             arrivalQ.processes[i]->state = FINISHED;
-            free(arrivalQ.processes[i]);
             total_wait += wait;
             total_WTA += WTA;
         }
@@ -167,6 +171,8 @@ void shortest_job_first(void)
 {
     min_heap priority_queue;
     priority_queue.size = 0;
+    priority_queue.capacity = max_num_processes;
+    priority_queue.heap = (heap_node **)malloc(sizeof(heap_node *) * max_num_processes);
     int executed_processes = 0;
 
     while (true)
@@ -184,19 +190,22 @@ void shortest_job_first(void)
             node->key = node->process->runningTime;
             node->process->state = RUNNING;
             min_heap_insert(&priority_queue, node);
+
+            //
+            printf("Schduler: PQ size is %d\n", priority_queue.size);
         }
         if (priority_queue.size > 0) //there are processes to be scheduled
         {
-            heap_node* running_node = min_heap_extract(&priority_queue);
+            heap_node *running_node = min_heap_extract(&priority_queue);
 
             int wait = getClk() - running_node->process->arrivalTime;
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                    getClk(),               //At time
+                    getClk(),                             //At time
                     running_node->process->id, "started", //process started
-                    running_node->process->arrivalTime,          //arrival
-                    running_node->process->runningTime,          //total
-                    running_node->process->runningTime,          //remain
-                    wait                    //wait
+                    running_node->process->arrivalTime,   //arrival
+                    running_node->process->runningTime,   //total
+                    running_node->process->runningTime,   //remain
+                    wait                                  //wait
             );
 
             fork_process(running_node->process->runningTime, running_node->process->id);
@@ -214,17 +223,15 @@ void shortest_job_first(void)
             total_WTA += WTA;
 
             fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
-                    getClk(),                //At time
+                    getClk(),                              //At time
                     running_node->process->id, "finished", //process started
-                    running_node->process->arrivalTime,           //arrival
-                    running_node->process->runningTime,           //total
-                    0,                       //remain
-                    wait,                    //wait
-                    TA,                      //TA
-                    WTA                      //WTA
+                    running_node->process->arrivalTime,    //arrival
+                    running_node->process->runningTime,    //total
+                    0,                                     //remain
+                    wait,                                  //wait
+                    TA,                                    //TA
+                    WTA                                    //WTA
             );
-            free(running_node->process);
-            free(running_node);
         }
         if (executed_processes == max_num_processes)
         {
@@ -242,12 +249,13 @@ void highest_priority_first(void)
     * 4) there is a running process, priority_queue is not empty -> preempt
     */
     // to save process PIDs
-    pid_t PIDS[MAX_NUM_PROCS];
+    pid_t *PIDS = (pid_t *)malloc(max_num_processes * sizeof(pid_t));
 
-    // local variables
     heap_node *running_node = NULL;
     min_heap priority_queue;
     priority_queue.size = 0;
+    priority_queue.capacity = max_num_processes;
+    priority_queue.heap = (heap_node **)malloc(sizeof(heap_node *) * max_num_processes);
     int executed_processes = 0;
     // keep running
     while (true)
@@ -295,8 +303,8 @@ void highest_priority_first(void)
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                     getClk(),                              //At time
                     running_node->process->id, status,     //process status
-                    running_node->process->arrivalTime,           //arrival
-                    running_node->process->runningTime,           //total
+                    running_node->process->arrivalTime,    //arrival
+                    running_node->process->runningTime,    //total
                     running_node->process->remaining_time, //remain
                     running_node->process->wait_time       //wait
             );
@@ -326,8 +334,8 @@ void highest_priority_first(void)
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                     getClk(),                              //At time
                     running_node->process->id, "stopped",  //process stopped
-                    running_node->process->arrivalTime,           //arrival
-                    running_node->process->runningTime,           //total
+                    running_node->process->arrivalTime,    //arrival
+                    running_node->process->runningTime,    //total
                     running_node->process->remaining_time, //remain
                     running_node->process->wait_time       //wait
             );
@@ -343,12 +351,12 @@ void highest_priority_first(void)
             new_running_node->process->state = RUNNING;
 
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                    getClk(),                              //At time
-                    new_running_node->process->id, status, //process status
-                    new_running_node->process->arrivalTime,       //arrival
-                    new_running_node->process->runningTime,       //total
-                    new_running_node->process->runningTime,       //remain
-                    new_running_node->process->wait_time   //wait
+                    getClk(),                               //At time
+                    new_running_node->process->id, status,  //process status
+                    new_running_node->process->arrivalTime, //arrival
+                    new_running_node->process->runningTime, //total
+                    new_running_node->process->runningTime, //remain
+                    new_running_node->process->wait_time    //wait
             );
 
             if (new_running_node->process->state != SUSPENDED)
@@ -367,8 +375,8 @@ void highest_priority_first(void)
             fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
                     getClk(),                              //At time
                     running_node->process->id, "finished", //process finished
-                    running_node->process->arrivalTime,           //arrival
-                    running_node->process->runningTime,           //total
+                    running_node->process->arrivalTime,    //arrival
+                    running_node->process->runningTime,    //total
                     running_node->process->remaining_time, //remain
                     running_node->process->wait_time,      //wait
                     TA,                                    //TA
@@ -377,8 +385,7 @@ void highest_priority_first(void)
             total_wait += running_node->process->wait_time;
             total_WTA += WTA;
             running_node->process->state = FINISHED;
-            free(running_node->process);
-            free(running_node);
+
             running_node = NULL;
             executed_processes++;
             process_completed = true;
@@ -394,11 +401,13 @@ void highest_priority_first(void)
 
 void shortest_remaining_time_next(void)
 {
-    pid_t PIDS[MAX_NUM_PROCS];
+    pid_t *PIDS = (pid_t *)malloc(max_num_processes * sizeof(pid_t));
 
     heap_node *running_node = NULL;
     min_heap priority_queue;
     priority_queue.size = 0;
+    priority_queue.capacity = max_num_processes;
+    priority_queue.heap = (heap_node **)malloc(sizeof(heap_node *) * max_num_processes);
     int executed_processes = 0;
 
     while (true)
@@ -418,6 +427,8 @@ void shortest_remaining_time_next(void)
             node->key = node->process->remaining_time;
             node->process->state = RUNNING;
             min_heap_insert(&priority_queue, node);
+            //
+            printf("Schduler: PQ size is %d\n", priority_queue.size);
         }
 
         if (running_node == NULL && priority_queue.size > 0)
@@ -448,8 +459,8 @@ void shortest_remaining_time_next(void)
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                     getClk(),                              //At time
                     running_node->process->id, status,     //process status
-                    running_node->process->arrivalTime,           //arrival
-                    running_node->process->runningTime,           //total
+                    running_node->process->arrivalTime,    //arrival
+                    running_node->process->runningTime,    //total
                     running_node->process->remaining_time, //remain
                     running_node->process->wait_time       //wait
             );
@@ -474,8 +485,8 @@ void shortest_remaining_time_next(void)
                 fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
                         getClk(),                              //At time
                         running_node->process->id, "finished", //process finished
-                        running_node->process->arrivalTime,           //arrival
-                        running_node->process->runningTime,           //total
+                        running_node->process->arrivalTime,    //arrival
+                        running_node->process->runningTime,    //total
                         running_node->process->remaining_time, //remain
                         running_node->process->wait_time,      //wait
                         TA,                                    //TA
@@ -484,8 +495,7 @@ void shortest_remaining_time_next(void)
                 total_wait += running_node->process->wait_time;
                 total_WTA += WTA;
                 running_node->process->state = FINISHED;
-                free(running_node);
-                free(running_node->process);
+
                 running_node = NULL;
                 executed_processes++;
                 process_completed = true;
@@ -502,8 +512,8 @@ void shortest_remaining_time_next(void)
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                         getClk(),                              //At time
                         running_node->process->id, "stopped",  //process stopped
-                        running_node->process->arrivalTime,           //arrival
-                        running_node->process->runningTime,           //total
+                        running_node->process->arrivalTime,    //arrival
+                        running_node->process->runningTime,    //total
                         running_node->process->remaining_time, //remain
                         running_node->process->wait_time       //wait
                 );
@@ -523,12 +533,12 @@ void shortest_remaining_time_next(void)
                 new_running_node->process->state = RUNNING;
 
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                        getClk(),                              //At time
-                        new_running_node->process->id, status, //process status
-                        new_running_node->process->arrivalTime,       //arrival
-                        new_running_node->process->runningTime,       //total
-                        new_running_node->process->runningTime,       //remain
-                        new_running_node->process->wait_time   //wait
+                        getClk(),                               //At time
+                        new_running_node->process->id, status,  //process status
+                        new_running_node->process->arrivalTime, //arrival
+                        new_running_node->process->runningTime, //total
+                        new_running_node->process->runningTime, //remain
+                        new_running_node->process->wait_time    //wait
                 );
 
                 if (new_running_node->process->state != SUSPENDED)
@@ -551,10 +561,11 @@ void shortest_remaining_time_next(void)
 
 void round_robin(void)
 {
-    pid_t PIDS[MAX_NUM_PROCS];
-    int Waits[MAX_NUM_PROCS];
-    int last_interrupt_timestamps[MAX_NUM_PROCS];
-    int remaining_times[MAX_NUM_PROCS];
+    pid_t *PIDS = (pid_t *)malloc(max_num_processes * sizeof(pid_t));
+    int *Waits = (int *)malloc(max_num_processes * sizeof(int));
+    int *last_interrupt_timestamps = (int *)malloc(max_num_processes * sizeof(int));
+    int *remaining_times = (int *)malloc(max_num_processes * sizeof(int));
+    ;
 
     bool all_processes_finished;
     while (1)
@@ -574,12 +585,12 @@ void round_robin(void)
                 remaining_times[i] = arrivalQ.processes[i]->runningTime;
                 *(process_remaining_flags + arrivalQ.processes[i]->id) = remaining_times[i];
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                        getClk(),                            //At time
+                        getClk(),                             //At time
                         arrivalQ.processes[i]->id, "started", //process started
-                        arrivalQ.processes[i]->arrivalTime,          //arrival
-                        arrivalQ.processes[i]->runningTime,          //total
-                        remaining_times[i],                  //remain
-                        Waits[i]                             //wait
+                        arrivalQ.processes[i]->arrivalTime,   //arrival
+                        arrivalQ.processes[i]->runningTime,   //total
+                        remaining_times[i],                   //remain
+                        Waits[i]                              //wait
                 );
                 PIDS[i] = fork_process(arrivalQ.processes[i]->runningTime, arrivalQ.processes[i]->id);
             }
@@ -587,12 +598,12 @@ void round_robin(void)
             {
                 Waits[i] += getClk() - last_interrupt_timestamps[i];
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                        getClk(),                                 //At time
+                        getClk(),                                  //At time
                         arrivalQ.processes[i]->id, "resumedraise", //process resumed
-                        arrivalQ.processes[i]->arrivalTime,               //arrival
-                        arrivalQ.processes[i]->runningTime,               //total
-                        remaining_times[i],                       //remain
-                        Waits[i]                                  //wait
+                        arrivalQ.processes[i]->arrivalTime,        //arrival
+                        arrivalQ.processes[i]->runningTime,        //total
+                        remaining_times[i],                        //remain
+                        Waits[i]                                   //wait
                 );
                 kill(PIDS[i], SIGCONT);
             }
@@ -614,26 +625,26 @@ void round_robin(void)
                 int TA = getClk() - arrivalQ.processes[i]->arrivalTime;
                 float WTA = ((float)TA) / arrivalQ.processes[i]->runningTime;
                 fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
-                        getClk(),                             //At time
+                        getClk(),                              //At time
                         arrivalQ.processes[i]->id, "finished", //process finished
-                        arrivalQ.processes[i]->arrivalTime,           //arrival
-                        arrivalQ.processes[i]->runningTime,           //total
-                        0,                                    //remain
-                        Waits[i],                             //wait
-                        TA,                                   //TA
-                        WTA                                   //WTA
+                        arrivalQ.processes[i]->arrivalTime,    //arrival
+                        arrivalQ.processes[i]->runningTime,    //total
+                        0,                                     //remain
+                        Waits[i],                              //wait
+                        TA,                                    //TA
+                        WTA                                    //WTA
                 );
                 arrivalQ.processes[i]->id = -1;
             }
             else
             {
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                        getClk(),                            //At time
+                        getClk(),                             //At time
                         arrivalQ.processes[i]->id, "stopped", //process stopped
-                        arrivalQ.processes[i]->arrivalTime,          //arrival
-                        arrivalQ.processes[i]->runningTime,          //total
-                        remaining_times[i],                  //remain
-                        Waits[i]                             //wait
+                        arrivalQ.processes[i]->arrivalTime,   //arrival
+                        arrivalQ.processes[i]->runningTime,   //total
+                        remaining_times[i],                   //remain
+                        Waits[i]                              //wait
                 );
                 last_interrupt_timestamps[i] = getClk();
                 arrivalQ.processes[i]->state = SUSPENDED;
@@ -694,6 +705,9 @@ void free_resources(int signum)
     shmctl(process_interrupt_shmid, IPC_RMID, NULL);
     shmctl(process_remaining_shmid, IPC_RMID, NULL);
 
+    for (int i = 0; i < arrivalQ.num_processes; i++)
+         free(arrivalQ.processes[i]);
+
     printf("Schduler: I managed to close the log file\n");
     exit(0);
 }
@@ -717,8 +731,8 @@ void recieve_process()
     }
     if (arrivalQ.num_processes < arrivalQ.capacity) // check if there is space for a new process
     {
+        arrivalQ.processes[arrivalQ.num_processes] = malloc(sizeof(proc));
         // process paramerters
-        arrivalQ.processes[arrivalQ.num_processes] = (proc*)malloc(sizeof(proc));
         arrivalQ.processes[arrivalQ.num_processes]->id = reply.currentProcess.id;
         arrivalQ.processes[arrivalQ.num_processes]->arrivalTime = reply.currentProcess.arrivalTime;
         arrivalQ.processes[arrivalQ.num_processes]->runningTime = reply.currentProcess.runningTime;
