@@ -154,7 +154,7 @@ void first_come_first_serve(void)
             );
 
             arrivalQ.processes[i]->state = FINISHED;
-
+            free(arrivalQ.processes[i]);
             total_wait += wait;
             total_WTA += WTA;
         }
@@ -180,49 +180,51 @@ void shortest_job_first(void)
 
             //creating a new heap node and setting its priority to running time (shortest running time first)
             heap_node *node = (heap_node *)malloc(sizeof(heap_node));
-            node->process = &arrivalQ.processes[i];
+            node->process = arrivalQ.processes[i];
             node->key = node->process->runningTime;
             node->process->state = RUNNING;
             min_heap_insert(&priority_queue, node);
         }
         if (priority_queue.size > 0) //there are processes to be scheduled
         {
-            proc *process = min_heap_extract(&priority_queue)->process;
+            heap_node* running_node = min_heap_extract(&priority_queue);
 
-            int wait = getClk() - process->arrivalTime;
+            int wait = getClk() - running_node->process->arrivalTime;
             fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
                     getClk(),               //At time
-                    process->id, "started", //process started
-                    process->arrivalTime,          //arrival
-                    process->runningTime,          //total
-                    process->runningTime,          //remain
+                    running_node->process->id, "started", //process started
+                    running_node->process->arrivalTime,          //arrival
+                    running_node->process->runningTime,          //total
+                    running_node->process->runningTime,          //remain
                     wait                    //wait
             );
 
-            fork_process(process->runningTime, process->id);
+            fork_process(running_node->process->runningTime, running_node->process->id);
             process_completed = false;
             while (!process_completed) //wait for process to be completed
             {
                 sleep(__INT_MAX__);
             }
             executed_processes++;
-            process->state = FINISHED;
+            running_node->process->state = FINISHED;
 
-            int TA = getClk() - process->arrivalTime;
-            float WTA = ((float)TA) / ((float)process->runningTime);
+            int TA = getClk() - running_node->process->arrivalTime;
+            float WTA = ((float)TA) / ((float)running_node->process->runningTime);
             total_wait += wait;
             total_WTA += WTA;
 
             fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
                     getClk(),                //At time
-                    process->id, "finished", //process started
-                    process->arrivalTime,           //arrival
-                    process->runningTime,           //total
+                    running_node->process->id, "finished", //process started
+                    running_node->process->arrivalTime,           //arrival
+                    running_node->process->runningTime,           //total
                     0,                       //remain
                     wait,                    //wait
                     TA,                      //TA
                     WTA                      //WTA
             );
+            free(running_node->process);
+            free(running_node);
         }
         if (executed_processes == max_num_processes)
         {
@@ -258,7 +260,7 @@ void highest_priority_first(void)
 
             //creating a new heap node and setting its key to the process priority
             heap_node *node = (heap_node *)malloc(sizeof(heap_node));
-            node->process = &arrivalQ.processes[i];
+            node->process = arrivalQ.processes[i];
             node->key = node->process->priority;
             node->process->state = RUNNING;
             min_heap_insert(&priority_queue, node);
@@ -375,6 +377,8 @@ void highest_priority_first(void)
             total_wait += running_node->process->wait_time;
             total_WTA += WTA;
             running_node->process->state = FINISHED;
+            free(running_node->process);
+            free(running_node);
             running_node = NULL;
             executed_processes++;
             process_completed = true;
@@ -410,7 +414,7 @@ void shortest_remaining_time_next(void)
             heap_node *node = (heap_node *)malloc(sizeof(heap_node));
             arrivalQ.processes[i]->remaining_time = arrivalQ.processes[i]->runningTime;
             arrivalQ.processes[i]->wait_time = 0;
-            node->process = &arrivalQ.processes[i];
+            node->process = arrivalQ.processes[i];
             node->key = node->process->remaining_time;
             node->process->state = RUNNING;
             min_heap_insert(&priority_queue, node);
@@ -480,6 +484,8 @@ void shortest_remaining_time_next(void)
                 total_wait += running_node->process->wait_time;
                 total_WTA += WTA;
                 running_node->process->state = FINISHED;
+                free(running_node);
+                free(running_node->process);
                 running_node = NULL;
                 executed_processes++;
                 process_completed = true;
