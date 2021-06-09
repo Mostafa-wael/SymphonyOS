@@ -86,7 +86,8 @@ enum proc_state
     READY,
     SUSPENDED,
     RUNNING,
-    FINISHED
+    FINISHED,                                    //FINISHED
+    WAITING
 };
 /**
  * @brief represents the PCB

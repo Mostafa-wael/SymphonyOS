@@ -13,9 +13,6 @@
 #define SCHEDULER_LOG_FINISH_LINE_FORMAT AT_TIME__ PROC__ ARR__ TOTAL__ REMAIN__ WAIT__ "\tTA\t%d" \
                                                                                         "\tWTA\t%.2f\n"
 
-
-                                                                                        
-
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //************************************ globals***********************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -30,6 +27,7 @@ int RR_quanta;
 bool process_completed;
 
 FILE *LogFile;
+FILE *MemFile;
 int total_wait = 0;
 float total_WTA = 0.0;
 int max_num_processes;
@@ -79,6 +77,26 @@ void freememlist_t_debugprint(struct freemem_list_t *list);
 
 //
 struct freemem_list_t *freeList;
+
+void printMemFile(int time, int mem, int alofree, int id, int start, int end)
+{
+    if (alofree == 1)
+        fprintf(MemFile, "At\ttime\t %d \tallocated\t %d \tbytes\tfor process\t%dfrom %d \tto\t %d",
+                time, //At time
+                mem,
+                id,    //total
+                start, //remain
+                end    //wait
+        );
+    else
+        fprintf(MemFile, "At\ttime\t%d\tfreed\t%d\tbytes\tfor process\t%dfrom%d\tto\t%d",
+                time, //At time
+                mem,
+                id,    //total
+                start, //remain
+                end    //wait
+        );
+}
 ///////////////////////////////////////////////////////////////////////////////////////////////////
 //****************************************** Main function *************************************//
 /////////////////////////////////////////////////////////////////////////////////////////////////
@@ -140,6 +158,10 @@ int main(int argc, char *argv[])
     else
         printf("Scheduler: managed to open log file\n");
 
+    if ((MemFile = fopen("memory.log", "w")) == NULL)
+        printf("Scheduler: Failed to open memory file\n");
+    else
+        printf("Scheduler: managed to open memory file\n");
     if (algo_idx == 4)
     {
         RR_quanta = atoi(argv[1]);
@@ -165,45 +187,47 @@ void first_come_first_serve(void)
 
             int startMemory = alloc_mem_ptrs[mem_idx](freeList, arrivalQ.processes[i]->mem);
             if (startMemory == -1)
-                continue;
-            
+            {
+                arrivalQ.processes[i]->state = WAITING;
+            }
+            else
+            {
+                int wait = getClk() - arrivalQ.processes[i]->arrivalTime;
+                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
+                        getClk(),                             //At time
+                        arrivalQ.processes[i]->id, "started", //process started
+                        arrivalQ.processes[i]->arrivalTime,   //arrival
+                        arrivalQ.processes[i]->runningTime,   //total
+                        arrivalQ.processes[i]->runningTime,   //remain
+                        wait                                  //wait
+                );
+                fork_process(arrivalQ.processes[i]->runningTime, arrivalQ.processes[i]->id);
 
+                //the sleep will not complete off course
+                //but we are putting it in a while loop because it might be interrupted for a reason other
+                //than the process finished
+                process_completed = false;
+                while (!process_completed)
+                    sleep(__INT_MAX__);
 
+                int TA = getClk() - arrivalQ.processes[i]->arrivalTime;
+                float WTA = ((float)TA) / ((float)arrivalQ.processes[i]->runningTime);
+                fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
+                        getClk(),                              //At time
+                        arrivalQ.processes[i]->id, "finished", //process started
+                        arrivalQ.processes[i]->arrivalTime,    //arrival
+                        arrivalQ.processes[i]->runningTime,    //total
+                        0,                                     //remain
+                        wait,                                  //wait
+                        TA,                                    //TA
+                        WTA                                    //WTA
+                );
 
-            int wait = getClk() - arrivalQ.processes[i]->arrivalTime;
-            fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                    getClk(),                             //At time
-                    arrivalQ.processes[i]->id, "started", //process started
-                    arrivalQ.processes[i]->arrivalTime,   //arrival
-                    arrivalQ.processes[i]->runningTime,   //total
-                    arrivalQ.processes[i]->runningTime,   //remain
-                    wait                                  //wait
-            );
-            fork_process(arrivalQ.processes[i]->runningTime, arrivalQ.processes[i]->id);
-
-            //the sleep will not complete off course
-            //but we are putting it in a while loop because it might be interrupted for a reason other
-            //than the process finished
-            process_completed = false;
-            while (!process_completed)
-                sleep(__INT_MAX__);
-
-            int TA = getClk() - arrivalQ.processes[i]->arrivalTime;
-            float WTA = ((float)TA) / ((float)arrivalQ.processes[i]->runningTime);
-            fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
-                    getClk(),                              //At time
-                    arrivalQ.processes[i]->id, "finished", //process started
-                    arrivalQ.processes[i]->arrivalTime,    //arrival
-                    arrivalQ.processes[i]->runningTime,    //total
-                    0,                                     //remain
-                    wait,                                  //wait
-                    TA,                                    //TA
-                    WTA                                    //WTA
-            );
-
-            arrivalQ.processes[i]->state = FINISHED;
-            total_wait += wait;
-            total_WTA += WTA;
+                arrivalQ.processes[i]->state = FINISHED;
+                dealloc_mem_ptrs[mem_idx](freeList, startMemory);
+                total_wait += wait;
+                total_WTA += WTA;
+            }
         }
         if (arrivalQ.num_processes == max_num_processes)
             kill(getppid(), SIGINT);
@@ -217,7 +241,7 @@ void shortest_job_first(void)
     priority_queue.capacity = max_num_processes;
     priority_queue.heap = (heap_node **)malloc(sizeof(heap_node *) * max_num_processes);
     int executed_processes = 0;
-
+    int startMemory;
     while (true)
     {
         for (int i = 0; i < arrivalQ.num_processes; i++)
@@ -226,62 +250,67 @@ void shortest_job_first(void)
             {
                 continue;
             }
-            int startMemory = alloc_mem_ptrs[mem_idx](freeList, arrivalQ.processes[i]->mem);
+            startMemory = alloc_mem_ptrs[mem_idx](freeList, arrivalQ.processes[i]->mem);
             if (startMemory == -1)
-                continue;
-
-            //creating a new heap node and setting its priority to running time (shortest running time first)
-            heap_node *node = (heap_node *)malloc(sizeof(heap_node));
-            node->process = arrivalQ.processes[i];
-            node->key = node->process->runningTime;
-            node->process->state = RUNNING;
-            min_heap_insert(&priority_queue, node);
-
-            //
-            printf("Schduler: PQ size is %d\n", priority_queue.size);
-        }
-        if (priority_queue.size > 0) //there are processes to be scheduled
-        {
-            heap_node *running_node = min_heap_extract(&priority_queue);
-
-            int wait = getClk() - running_node->process->arrivalTime;
-            fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
-                    getClk(),                             //At time
-                    running_node->process->id, "started", //process started
-                    running_node->process->arrivalTime,   //arrival
-                    running_node->process->runningTime,   //total
-                    running_node->process->runningTime,   //remain
-                    wait                                  //wait
-            );
-
-            fork_process(running_node->process->runningTime, running_node->process->id);
-            process_completed = false;
-            while (!process_completed) //wait for process to be completed
+                arrivalQ.processes[i]->state = WAITING;
+            else
             {
-                sleep(__INT_MAX__);
+                printMemFile(getClk(), arrivalQ.processes[i]->mem, 1, arrivalQ.processes[i]->id, startMemory, startMemory + arrivalQ.processes[i]->mem);
+                //creating a new heap node and setting its priority to running time (shortest running time first)
+                heap_node *node = (heap_node *)malloc(sizeof(heap_node));
+                node->process = arrivalQ.processes[i];
+                node->key = node->process->runningTime;
+                node->process->state = RUNNING;
+                min_heap_insert(&priority_queue, node);
+
+                //
+                printf("Schduler: PQ size is %d\n", priority_queue.size);
             }
-            executed_processes++;
-            running_node->process->state = FINISHED;
+            if (priority_queue.size > 0) //there are processes to be scheduled
+            {
+                heap_node *running_node = min_heap_extract(&priority_queue);
 
-            int TA = getClk() - running_node->process->arrivalTime;
-            float WTA = ((float)TA) / ((float)running_node->process->runningTime);
-            total_wait += wait;
-            total_WTA += WTA;
+                int wait = getClk() - running_node->process->arrivalTime;
+                fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT,
+                        getClk(),                             //At time
+                        running_node->process->id, "started", //process started
+                        running_node->process->arrivalTime,   //arrival
+                        running_node->process->runningTime,   //total
+                        running_node->process->runningTime,   //remain
+                        wait                                  //wait
+                );
 
-            fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
-                    getClk(),                              //At time
-                    running_node->process->id, "finished", //process started
-                    running_node->process->arrivalTime,    //arrival
-                    running_node->process->runningTime,    //total
-                    0,                                     //remain
-                    wait,                                  //wait
-                    TA,                                    //TA
-                    WTA                                    //WTA
-            );
-        }
-        if (executed_processes == max_num_processes)
-        {
-            kill(getppid(), SIGINT);
+                fork_process(running_node->process->runningTime, running_node->process->id);
+                process_completed = false;
+                while (!process_completed) //wait for process to be completed
+                {
+                    sleep(__INT_MAX__);
+                }
+                executed_processes++;
+                running_node->process->state = FINISHED;
+                dealloc_mem_ptrs[mem_idx](freeList, startMemory);
+                printMemFile(getClk(),arrivalQ.processes[i]->mem, 0, arrivalQ.processes[i]->id, startMemory, startMemory + arrivalQ.processes[i]->mem);
+
+                int TA = getClk() - running_node->process->arrivalTime;
+                float WTA = ((float)TA) / ((float)running_node->process->runningTime);
+                total_wait += wait;
+                total_WTA += WTA;
+
+                fprintf(LogFile, SCHEDULER_LOG_FINISH_LINE_FORMAT,
+                        getClk(),                              //At time
+                        running_node->process->id, "finished", //process started
+                        running_node->process->arrivalTime,    //arrival
+                        running_node->process->runningTime,    //total
+                        0,                                     //remain
+                        wait,                                  //wait
+                        TA,                                    //TA
+                        WTA                                    //WTA
+                );
+            }
+            if (executed_processes == max_num_processes)
+            {
+                kill(getppid(), SIGINT);
+            }
         }
     }
 }
@@ -739,6 +768,7 @@ void on_process_complete_awake(int signum)
 void free_resources(int signum)
 {
     fclose(LogFile);
+    fclose(MemFile);
 
     LogFile = fopen("scheduler.perf", "w");
     int total_runtimes = 0;
