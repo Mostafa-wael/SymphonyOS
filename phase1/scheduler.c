@@ -321,9 +321,8 @@ void highest_priority_first(void)
             //preempt
             printf("Schduler: Preemption, switch process %d with process %d\n", running_node->process->id, priority_queue.heap[0]->process->id);
             running_node->process->state = SUSPENDED;
-            running_node->process->priority--; // decremnt the process priority
             running_node->process->remaining_time = running_node->process->runningTime - (currentTime - running_node->process->start_time);
-            running_node->key = running_node->process->priority; // Hence, the key ia also decremnted
+            running_node->key = running_node->process->priority; 
             min_heap_insert(&priority_queue, running_node);
             // suspend the currentProcess
             kill(PIDS[running_node->process->id - 1], SIGSTOP);
