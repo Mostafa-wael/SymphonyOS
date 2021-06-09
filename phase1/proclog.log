@@ -2352,6 +2352,7 @@ P2: at 7 currently running, rem 2
 ---
 P2: at 8 currently running, rem 1
 ---
+<<<<<<< HEAD
 P1: at 2 currently running, rem 2
 ---
 P1: at 3 currently running, rem 1
@@ -2495,4 +2496,53 @@ P5: at 16 currently running, rem 3
 P5: at 17 currently running, rem 2
 ---
 P5: at 18 currently running, rem 1
+=======
+P1: at 2 currently running, rem 3
+---
+P1: at 3 currently running, rem 2
+---
+P1: at 4 currently running, rem 1
+---
+P2: at 5 currently running, rem 2
+---
+P2: at 6 currently running, rem 1
+---
+P1: at 2 currently running, rem 3
+---
+P1: at 3 currently running, rem 2
+---
+P1: at 4 currently running, rem 1
+---
+P2: at 5 currently running, rem 2
+---
+P2: at 6 currently running, rem 1
+---
+P1: at 2 currently running, rem 3
+---
+P1: at 3 currently running, rem 2
+---
+P1: at 4 currently running, rem 1
+---
+P2: at 5 currently running, rem 2
+---
+P2: at 6 currently running, rem 1
+---
+P3: at 7 currently running, rem 2
+---
+P3: at 8 currently running, rem 1
+---
+P1: at 2 currently running, rem 3
+---
+P1: at 3 currently running, rem 2
+---
+P1: at 4 currently running, rem 1
+---
+P2: at 5 currently running, rem 2
+---
+P2: at 6 currently running, rem 1
+---
+P3: at 7 currently running, rem 2
+---
+P3: at 8 currently running, rem 1
+>>>>>>> 5aad59ee5adafedcd1820932e0022a14e8cf593d
 ---

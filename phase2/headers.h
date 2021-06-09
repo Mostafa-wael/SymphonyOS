@@ -101,6 +101,7 @@ struct proc
     int start_time;
     int remaining_time;
     int wait_time;
+    int mem;
     enum proc_state state;
 };
 typedef struct proc proc;

@@ -385,7 +385,10 @@ void highest_priority_first(void)
             total_wait += running_node->process->wait_time;
             total_WTA += WTA;
             running_node->process->state = FINISHED;
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5aad59ee5adafedcd1820932e0022a14e8cf593d
             running_node = NULL;
             executed_processes++;
             process_completed = true;
@@ -495,7 +498,10 @@ void shortest_remaining_time_next(void)
                 total_wait += running_node->process->wait_time;
                 total_WTA += WTA;
                 running_node->process->state = FINISHED;
+<<<<<<< HEAD
 
+=======
+>>>>>>> 5aad59ee5adafedcd1820932e0022a14e8cf593d
                 running_node = NULL;
                 executed_processes++;
                 process_completed = true;
@@ -702,6 +708,10 @@ void free_resources(int signum)
     fprintf(LogFile, "Avg Waiting=%.2f\n", total_wait / ((float)arrivalQ.num_processes));
     fclose(LogFile);
 
+    for (int i = 0; i < arrivalQ.num_processes; i++)
+    {
+        free(arrivalQ.processes[i]);
+    }    
     shmctl(process_interrupt_shmid, IPC_RMID, NULL);
     shmctl(process_remaining_shmid, IPC_RMID, NULL);
 
