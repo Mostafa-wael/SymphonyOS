@@ -379,7 +379,6 @@ void shortest_remaining_time_next(void)
                     status = "started";
                 }
                 new_running_node->process->state = RUNNING;
-                int j = new_running_node->process->id - 1;
 
                 fprintf(LogFile, SCHEDULER_LOG_NON_FINISH_LINE_FORMAT, 
                         getClk(),                                       //At time 
@@ -390,13 +389,13 @@ void shortest_remaining_time_next(void)
                         new_running_node->process->wait_time            //wait
                         ); 
 
-                if (PIDS[j] == -1)
+                if (new_running_node->process->state != SUSPENDED)
                 {
-                    PIDS[j] = fork_process(new_running_node->process->runt, new_running_node->process->id);
+                    PIDS[new_running_node->process->id - 1] = fork_process(new_running_node->process->runt, new_running_node->process->id);
                 }
                 else
                 {
-                    kill(PIDS[j], SIGCONT);
+                    kill(PIDS[new_running_node->process->id - 1], SIGCONT);
                 }
                 running_node = new_running_node;
             }
