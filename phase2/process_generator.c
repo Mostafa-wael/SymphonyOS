@@ -49,8 +49,8 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
 
         sscanf(buff, "%d\t%d\t%d\t%d",
                &(procTable[index].id),
-               &(procTable[index].arrivaltime),
-               &(procTable[index].runningtime),
+               &(procTable[index].arrivalTime),
+               &(procTable[index].runningTime),
                &(procTable[index].priority));
 
         index++;
@@ -62,7 +62,7 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     //check
     for (int i = 0; i < number_processes; i++)
     {
-        printf("%d , %d ,%d , %d \n", procTable[i].id, procTable[i].arrivaltime, procTable[i].runningtime, procTable[i].priority);
+        printf("%d , %d ,%d , %d \n", procTable[i].id, procTable[i].arrivalTime, procTable[i].runningTime, procTable[i].priority);
     }
 
     //****************************************************************
@@ -122,7 +122,7 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
 
     int prevTime = getClk();
     unsigned int current_index = 0;
-    //procTable[number_processes-1].arrivaltime > getClk()
+    //procTable[number_processes-1].arrivalTime > getClk()
 
     while (1)
     {
@@ -130,9 +130,9 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
         if (currentTime != prevTime) // add this condition to avoid printing the time a lot
         {
             // printf("ProcessGenerator : Current Time is %d\n", currentTime);
-            if (procTable[current_index].arrivaltime == currentTime)
+            if (procTable[current_index].arrivalTime == currentTime)
             {
-                while (procTable[current_index].arrivaltime == currentTime)
+                while (procTable[current_index].arrivalTime == currentTime)
                 {
                     printf("ProcessGenerator : There is a process at Time %d\n", currentTime);
 
@@ -147,8 +147,8 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
                         (*MsgQIDsz)++;
                         printf("ProcessGenerator: it is, %d, %d, %d, %d\n",
                                procTable[current_index].id,
-                               procTable[current_index].arrivaltime,
-                               procTable[current_index].runningtime,
+                               procTable[current_index].arrivalTime,
+                               procTable[current_index].runningTime,
                                procTable[current_index].priority);
                     }
                     current_index++;

@@ -17,7 +17,6 @@
 
 // user defined libraries
 #include "queues.h"
-#include "processTable.h"
 
 // variables and defintions
 typedef short bool;
@@ -77,12 +76,6 @@ void destroyClk(bool terminateAll)
     }
 }
 
-//**************************************************************** Message Queue ****************************************************************//
-struct msgbuff // the message format
-{
-    long mtype;
-    comingProcess currentProcess;
-};
 //**************************************************************** Utilities ****************************************************************//
 enum proc_state 
 {
@@ -94,9 +87,9 @@ enum proc_state
 struct proc
 {
     int id;
-    int arrt;
-    int runt;
-    int priorty;
+    int arrivalTime;
+    int runningTime;
+    int priority;
     int start_time;
     int remaining_time;
     int wait_time;
@@ -104,6 +97,13 @@ struct proc
 };
 typedef struct proc proc;
 
+//**************************************************************** Message Queue ****************************************************************//
+typedef struct comingProcess comingProcess;
+struct msgbuff // the message format
+{
+    long mtype;
+    proc currentProcess;
+};
 //**************************************************************** Min Heap ****************************************************************//
 #define leftChild(i) (2 * i + 1)
 #define rightChild(i) (2 * i + 2)
