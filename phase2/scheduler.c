@@ -385,10 +385,7 @@ void highest_priority_first(void)
             total_wait += running_node->process->wait_time;
             total_WTA += WTA;
             running_node->process->state = FINISHED;
-<<<<<<< HEAD
 
-=======
->>>>>>> 5aad59ee5adafedcd1820932e0022a14e8cf593d
             running_node = NULL;
             executed_processes++;
             process_completed = true;
@@ -498,10 +495,7 @@ void shortest_remaining_time_next(void)
                 total_wait += running_node->process->wait_time;
                 total_WTA += WTA;
                 running_node->process->state = FINISHED;
-<<<<<<< HEAD
 
-=======
->>>>>>> 5aad59ee5adafedcd1820932e0022a14e8cf593d
                 running_node = NULL;
                 executed_processes++;
                 process_completed = true;
