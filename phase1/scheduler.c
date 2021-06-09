@@ -68,6 +68,16 @@ int main(int argc, char *argv[])
     signal(SIGUSR1, on_msgqfull_handler);
     signal(SIGUSR2, on_process_complete_awake);
     signal(SIGINT, free_resources);
+    
+    // get the selected algorithm
+    printf("Schduler : called on %s\n", argv[0]);
+    int algo_idx = atoi(argv[0]) - 1;
+    max_num_processes = atoi(argv[2]);
+
+    // initiating the arrival queue
+    arrivalQ.capacity = max_num_processes;
+    arrivalQ.num_processes = 0;
+    arrivalQ.processes = (proc **)malloc(sizeof(proc *) * arrivalQ.capacity);
 
     // initiating the clock
     initClk();
@@ -87,21 +97,12 @@ int main(int argc, char *argv[])
     else
         printf("Scheduler: managed to open log file\n");
 
-    // get the selected algorithm
-    printf("Schduler : called on %s\n", argv[0]);
-    int algo_idx = atoi(argv[0]) - 1;
-    max_num_processes = atoi(argv[2]);
-
     if (algo_idx == 4)
     {
         RR_quanta = atoi(argv[1]);
         printf("Schduler: RoundRobin Quantum is %s\n", argv[1]);
     }
 
-    // initiating the arrival queue
-    arrivalQ.capacity = max_num_processes;
-    arrivalQ.num_processes = 0;
-    arrivalQ.processes = (proc **)malloc(sizeof(proc *) * arrivalQ.capacity);
     //check
     printf("Schduler: Max number of proccesses is %d, and the capacity is %d\n", max_num_processes, arrivalQ.capacity);
 
