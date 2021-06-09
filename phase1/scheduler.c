@@ -424,8 +424,6 @@ void shortest_remaining_time_next(void)
             node->key = node->process->remaining_time;
             node->process->state = RUNNING;
             min_heap_insert(&priority_queue, node);
-            //
-            printf("Schduler: PQ size is %d\n", priority_queue.size);
         }
 
         if (running_node == NULL && priority_queue.size > 0)
@@ -767,52 +765,3 @@ pid_t fork_process(int runtime, int id)
     else
         return process_pid;
 }
-
-//LEAVE THIS*************************************************
-/*
- if (running_process == NULL && priority_queue.size > 0)      //there is no running process currently and the queue has nodes
-        {
-            running_process = min_heap_extract(&priority_queue);
-            running_process->process->start_time = getClk();
-            running_process->process->state = RUNNING;
-            *(process_interrupt_flags + running_process->process->id) = false;
-            //fprintf(LogFile, "run (and remove from the heap) process#%d at time = %d\n\n", running_process->process->id, getClk());
-            fork_process(running_process->process->runningTime, running_process->process->id);
-        }
-        else
-        {
-            //fprintf(LogFile, "running process#%d, expected finish time = %d\n", running_process->id, running_process->start_time + running_process->runningTime);
-            if (running_process != NULL && running_process->process->start_time + running_process->process->runningTime == getClk()) //check if the running process is finished
-            {   
-                if (running_process->process->state != FINISHED)
-                {
-                    fprintf(LogFile, "process #%d finished at time = %d\n\n", running_process->process->id, getClk());
-                }
-                running_process->process->state = FINISHED;
-                running_process->process->finish_time = getClk();
-                running_process = NULL;
-            }
-            // fprintf(LogFile, "running process runtime = %d\n", running_process->runningTime);
-            // fprintf(LogFile, "minimum runtime in the heap = %d, id = %d\n", priority_queue.heap[0]->process->runningTime, priority_queue.heap[0]->process->id);
-            // fprintf(LogFile, "running = %d\n", running);
-            if (running_process != NULL && priority_queue.size > 0 && priority_queue.heap[0]->process->runningTime < running_process->process->runningTime - (getClk() - running_process->process->start_time))
-            {
-                //preempt
-                heap_node* new_running_node;
-                new_running_node = min_heap_extract(&priority_queue);
-                new_running_node->process->start_time = getClk();
-                new_running_node->process->state = RUNNING;
-
-                fprintf(LogFile, "run process#%d (extract from the min heap) ", new_running_node->process->id);
-
-                heap_node* temp_node;
-                running_process->process->state = READY;
-                running_process->process->runningTime = running_process->process->runningTime - (getClk() - running_process->process->start_time);
-                temp_node = running_process;
-                temp_node->key = temp_node->process->runningTime;
-
-                running_process = new_running_node;
-                fprintf(LogFile, "--- add process#%d to min heap at time = %d (preemption)\n\n", temp_node->process->id, getClk());
-            }
-        }
-*/
