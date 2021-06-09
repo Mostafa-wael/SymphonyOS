@@ -154,7 +154,6 @@ void first_come_first_serve(void)
             );
 
             arrivalQ.processes[i]->state = FINISHED;
-            free(arrivalQ.processes[i]);
             total_wait += wait;
             total_WTA += WTA;
         }
@@ -223,8 +222,6 @@ void shortest_job_first(void)
                     TA,                      //TA
                     WTA                      //WTA
             );
-            free(running_node->process);
-            free(running_node);
         }
         if (executed_processes == max_num_processes)
         {
@@ -377,8 +374,6 @@ void highest_priority_first(void)
             total_wait += running_node->process->wait_time;
             total_WTA += WTA;
             running_node->process->state = FINISHED;
-            free(running_node->process);
-            free(running_node);
             running_node = NULL;
             executed_processes++;
             process_completed = true;
@@ -484,8 +479,6 @@ void shortest_remaining_time_next(void)
                 total_wait += running_node->process->wait_time;
                 total_WTA += WTA;
                 running_node->process->state = FINISHED;
-                free(running_node);
-                free(running_node->process);
                 running_node = NULL;
                 executed_processes++;
                 process_completed = true;
@@ -691,6 +684,10 @@ void free_resources(int signum)
     fprintf(LogFile, "Avg Waiting=%.2f\n", total_wait / ((float)arrivalQ.num_processes));
     fclose(LogFile);
 
+    for (int i = 0; i < arrivalQ.num_processes; i++)
+    {
+        free(arrivalQ.processes[i]);
+    }    
     shmctl(process_interrupt_shmid, IPC_RMID, NULL);
     shmctl(process_remaining_shmid, IPC_RMID, NULL);
 
