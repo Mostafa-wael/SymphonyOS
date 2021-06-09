@@ -73,6 +73,7 @@ int main(int argc, char *argv[])
     printf("Schduler : called on %s\n", argv[0]);
     int algo_idx = atoi(argv[0]) - 1;
     max_num_processes = atoi(argv[2]);
+    int mem_algo=atoi(argv[3]); 
 
     // initiating the arrival queue
     arrivalQ.capacity = max_num_processes;
@@ -96,6 +97,18 @@ int main(int argc, char *argv[])
     algos_ptrs[3] = shortest_remaining_time_next;
     algos_ptrs[4] = round_robin;
 
+
+
+    // determine the memory algorithm 
+    
+    int (*alloc_mem_ptrs[4])(struct freemem_list_t*, int);
+    alloc_mem_ptrs[0] = first_fit_alloc;
+    alloc_mem_ptrs[1] = next_fit_alloc;
+    alloc_mem_ptrs[2] = best_fit_alloc;
+    alloc_mem_ptrs[3] = buddy_alloc;
+
+    
+    
     // initiating the scheduler
     // open log file
     if ((LogFile = fopen("scheduler.log", "w")) == NULL)
@@ -321,7 +334,6 @@ void highest_priority_first(void)
             //preempt
             printf("Schduler: Preemption, switch process %d with process %d\n", running_node->process->id, priority_queue.heap[0]->process->id);
             running_node->process->state = SUSPENDED;
-            running_node->process->priority--; // decremnt the process priority
             running_node->process->remaining_time = running_node->process->runningTime - (currentTime - running_node->process->start_time);
             running_node->key = running_node->process->priority; // Hence, the key ia also decremnted
             min_heap_insert(&priority_queue, running_node);
@@ -764,4 +776,412 @@ pid_t fork_process(int runtime, int id)
     }
     else
         return process_pid;
+}
+
+
+
+
+
+
+
+
+//--------------------------------memory------------------------------
+
+struct freemem_list_t* create_freemem_list(){
+    struct mem_node* list = (struct mem_node*)malloc(sizeof(struct mem_node));
+    list->length = MEM_SIZE ;
+    list->start  = 0 ;
+    list->type   = HOLE ;
+    list->next   = NULL  ;
+
+    struct freemem_list_t* L = (struct freemem_list_t*)malloc(sizeof(struct freemem_list_t));
+    L->head         = list ;
+    L->next_fit_ptr = list ;
+    L->total_free   = MEM_SIZE ;
+    return L ;
+}
+
+struct mem_node* alloc_proc(struct freemem_list_t* L,
+                            int reqsz, 
+                            struct mem_node* hole_prev, struct mem_node* hole){
+    if(reqsz == hole->length){
+        hole->type = PROC ;
+        return hole ;
+    }
+
+    struct mem_node* new_proc = (struct mem_node*)malloc(sizeof(struct mem_node));
+    new_proc->start  = hole->start ;
+    new_proc->length = reqsz ;
+    new_proc->next   = hole ;
+    new_proc->type   = PROC ;
+
+    if(hole_prev != NULL) hole_prev->next = new_proc ;
+    else                  L->head = new_proc ;
+
+    hole->length -= reqsz ;
+    hole->start  += new_proc->length ;
+
+    return new_proc ;
+}
+
+struct mem_node* dealloc_proc(struct freemem_list_t* L, 
+                              struct mem_node* proc_prev, struct mem_node* proc ){
+    if(proc_prev == NULL){
+        if(proc->next == NULL || proc->next->type == PROC){
+            proc->type = HOLE ;
+            return proc ;
+        }
+        else{
+            proc->next->length += proc->length ;
+            proc->next->start   = proc->start  ;
+            L->head = proc->next ;
+
+            free((void*)proc);
+            return L->head ;
+        }
+    }
+
+    if(proc->next == NULL){
+        if(proc_prev == NULL || proc_prev->type == PROC){
+            proc->type = HOLE;
+            return proc ;
+        }
+        else{
+            proc_prev->length += proc->length ;
+            proc_prev->next    = NULL ;
+            free((void*)proc);
+            return proc_prev ;
+        }
+    }
+
+    //IF we get here this means that both proc_prev and proc->next point to valid mem_nodes
+    if(proc_prev->type == PROC && proc->next->type == PROC){
+        proc->type = HOLE ;
+        return proc ;
+    }
+    else{
+        struct mem_node* which_to_return ;
+        if(proc_prev->type      == HOLE && proc->next->type == PROC){
+            proc_prev->length += proc->length ;
+            proc_prev->next    = proc->next   ;
+
+            which_to_return = proc_prev ;
+        }
+        else if(proc_prev->type == PROC && proc->next->type == HOLE){
+            proc->next->length += proc->length ;
+            proc->next->start   = proc->start  ;
+            proc_prev->next     = proc->next ;
+
+            which_to_return = proc->next ;
+        }
+        else /* if( proc_prev->type == HOLE && proc->next->type == HOLE)*/ {
+            if(L->next_fit_ptr != proc->next){
+                proc_prev->length += proc->length + proc->next->length ;
+                proc_prev->next    = proc->next->next ;
+
+                which_to_return = proc_prev ;
+                free((void*)proc->next);
+            }
+            else{
+                proc->next->length += proc->length + proc_prev->length ;
+                proc->next->start   = proc_prev->start ;
+
+                struct mem_node* prev_to_proc_prev = L->head ;
+                if(proc_prev == L->head) prev_to_proc_prev = NULL ;
+                else{
+                    while(prev_to_proc_prev->next != proc_prev){
+                        prev_to_proc_prev = prev_to_proc_prev->next ;
+                    }
+                }
+
+                if(prev_to_proc_prev != NULL) prev_to_proc_prev->next = proc->next ;
+                
+                which_to_return = proc->next ;
+                if(L->head == proc_prev) L->head = proc->next ;
+
+                free((void*)proc_prev);
+            }
+        }
+        free((void*)proc);
+        return which_to_return ;
+    }
+}
+
+int next_fit_alloc(struct freemem_list_t* freememlist, int requestsize){
+    if(requestsize > freememlist->total_free ) return -1 ;
+
+    struct mem_node* itr  = freememlist->head ;
+    struct mem_node* prev = NULL ;
+    while(itr != freememlist->next_fit_ptr ){
+        prev = itr ;
+        itr = itr->next ;
+    }
+
+    //break once you reach this pointer again without finding what you're looking for
+    //, no use iterating over the list again
+    struct mem_node* cyclegaurd = prev ;
+    
+    while(itr != cyclegaurd){
+        if( itr->type == HOLE && !(itr->length < requestsize)){
+
+            struct mem_node* res = alloc_proc(freememlist,requestsize,prev,itr) ;
+            freememlist->total_free -= requestsize ;  
+
+            if(res == itr && freememlist->total_free != 0){
+
+                while(freememlist->next_fit_ptr->type != HOLE){
+                    freememlist->next_fit_ptr = freememlist->next_fit_ptr->next ;
+
+                    if(freememlist->next_fit_ptr == NULL){
+                        freememlist->next_fit_ptr = freememlist->head ;
+                    }
+                
+                }
+            }
+            else{
+                freememlist->next_fit_ptr = res->next;
+
+                if(freememlist->total_free == 0) freememlist->next_fit_ptr = NULL ;
+            }
+
+            return res->start ;
+        }
+    
+        prev = itr ;
+        itr  = itr->next ;
+        if(itr == NULL){
+            itr = freememlist->head ;
+            prev = NULL ;
+        }
+    }
+    
+    return -1 ;
+}
+
+int first_fit_alloc(struct freemem_list_t *freememlist, int requestsize)
+{
+    if(requestsize > freememlist->total_free) return -1;
+
+    struct mem_node *current = freememlist->head;
+    struct mem_node *prev = NULL;
+
+    while (current != NULL)
+    {
+        if (current->type == HOLE && current->length >= requestsize)
+        {
+            struct mem_node *new = alloc_proc(freememlist,requestsize, prev, current);
+            freememlist->total_free -= requestsize;
+            return new->start;
+        }
+        prev = current;
+        current = current->next;
+    }
+    return -1;
+}
+
+int best_fit_alloc(struct freemem_list_t *freememlist, int requestsize)
+{
+    if(requestsize > freememlist->total_free) return -1;
+
+    struct mem_node *current = freememlist->head;
+    struct mem_node *prev = NULL;
+
+    struct mem_node *best = NULL ;
+    struct mem_node *best_prev ;
+    int minium = __INT_MAX__;
+
+    while (current != NULL)
+    {
+        if (current->type == HOLE && current->length >= requestsize)
+        {
+            if (current->length == requestsize)
+            {
+                struct mem_node *new = alloc_proc(freememlist,requestsize, prev, current);
+                freememlist->total_free -= requestsize;
+
+                return new->start;
+            }
+            else if (current->length < minium) 
+            {
+                minium = current->length;
+                best_prev = prev;
+                best = current;
+            }
+        }
+        prev = current;
+        current = current->next;
+    }
+
+    if (best != NULL)
+    {
+        struct mem_node *new = alloc_proc(freememlist,requestsize, best_prev, best);
+        freememlist->total_free -= requestsize;
+
+        return new->start;
+    }
+    return -1;
+}
+
+void dealloc(struct freemem_list_t* list, int address){
+    struct mem_node* prev = NULL ;
+    struct mem_node* itr = list->head ;
+
+    while(itr != NULL && itr->start != address){
+        prev = itr ;
+        itr = itr->next ;
+    } 
+
+    if(itr != NULL) {
+        bool reset_next_fit_ptr = list->total_free == 0 ;
+        
+        list->total_free += itr->length ;
+
+        struct mem_node* res = dealloc_proc(list,prev,itr);
+        if(reset_next_fit_ptr){
+            list->next_fit_ptr = res ;
+        }
+    }
+}
+
+int buddy_alloc(struct freemem_list_t* freememlist, int requestsize){
+    if(requestsize > freememlist->total_free) return -1 ;
+    
+    //round up request size to 
+    //                  1- MIN_SIZE_BUDDY if it's smaller than MIN_SIZE_BUDDY 
+    //                  2- nearest greater power of two if it's not a power of two  
+    if(requestsize < MIN_SIZE_BUDDY){
+        requestsize = MIN_SIZE_BUDDY ;
+    }
+    //an amazing bit-hack I found on stackoverflow 
+    //this x & (x-1) is zero if and only if x is a power  of two (where 0 is a power of two,but this is irrelevant)
+    if( (requestsize & (requestsize - 1)) != 0 ){
+        for(int i = 1 ; i <= freememlist->total_free ; i = i<<1){
+            if(i > requestsize) {
+                requestsize = i ;
+                break ;
+            }
+        }
+        if((requestsize & (requestsize - 1)) != 0 ) return -1; 
+    }
+    //If i ever get here this means requestsize is now a valid power of two 
+
+    struct mem_node* itr = freememlist->head ;
+    struct mem_node* prev = NULL ;
+    while(itr != NULL){
+        if(itr->type == HOLE && itr->length >= requestsize ){
+
+            while(itr->length > requestsize){
+                struct mem_node* new_buddy = (struct mem_node*)malloc(sizeof(struct mem_node));
+                new_buddy->type   = HOLE ;
+                new_buddy->length = itr->length/2 ;
+                new_buddy->next   = itr->next ;
+                new_buddy->start  = itr->start + new_buddy->length ;
+
+                itr->length = new_buddy->length ;
+                itr->next   = new_buddy ;
+            }
+
+            itr->type = PROC  ;
+            freememlist->total_free -= itr->length ; 
+            return itr->start ;
+        }
+        
+        prev = itr ;
+        itr  = itr->next ;
+    }
+    return -1 ;
+}
+
+void buddy_dealloc(struct freemem_list_t* list, int address){
+    struct mem_node* prev_prev = NULL ;
+    struct mem_node* prev = NULL ;
+    struct mem_node* itr = list->head ;
+    
+    int curr_pos = 0;
+    while(itr != NULL && itr->start != address){
+        curr_pos++ ;
+
+        prev_prev = prev ;
+        prev = itr ;
+        itr = itr->next ;
+    } 
+
+    if(itr != NULL){
+        itr->type = HOLE ;
+        list->total_free += itr->length ;
+
+        //calesce memory
+
+        //1- from freed block untill end of memory
+        //------------------------------------------
+        if(curr_pos%2 != 0){
+            itr = prev ;
+            prev = prev_prev ;
+        }
+
+        while(    itr->next != NULL 
+               && itr->next->type == HOLE 
+               && itr->next->length == itr->length){
+
+                itr->next->start = itr->start ;
+                itr->next->length *= 2 ;
+                if(prev != NULL) prev->next = itr->next ;
+                else             list->head = itr->next ;
+                
+                struct mem_node* deleted = itr ;
+                itr = itr->next ;
+                
+                free((void*)deleted);
+                
+        }
+        //------------------------------------------
+
+        //2- from beginning of memory untill end of memory
+        //------------------------------------------
+        struct mem_node* coalescing_itr = list->head ;
+        struct mem_node* coalescing_prev = NULL ;
+        curr_pos = 0;
+        while(coalescing_itr != NULL){
+            while(curr_pos%2 == 0 
+               && coalescing_itr->type == HOLE
+               && coalescing_itr->next != NULL 
+               && coalescing_itr->next->type == HOLE 
+               && coalescing_itr->next->length == coalescing_itr->length){
+
+                coalescing_itr->next->start = coalescing_itr->start ;
+                coalescing_itr->next->length *= 2 ;
+                if(coalescing_prev != NULL) coalescing_prev->next = coalescing_itr->next ;
+                else                        list->head = coalescing_itr->next ;
+                
+                struct mem_node* deleted = coalescing_itr ;
+                coalescing_itr = coalescing_itr->next ;
+                
+                free((void*)deleted);
+                
+            }
+
+            curr_pos++ ;
+            coalescing_prev = coalescing_itr ;
+            coalescing_itr = coalescing_itr->next ;
+        }
+        //------------------------------------------
+    }
+}
+
+void freememlist_t_debugprint(struct freemem_list_t* list){
+    struct mem_node* itr = list->head ;
+
+    while(1){
+        if(itr->type == HOLE) printf("Hole ");
+        else printf("Process ");
+        
+        printf("Node<addr=%d, len=%d> ",itr->start , itr->length);
+        if(itr->next != NULL) printf("| --->> ");
+        else break ;
+
+        itr = itr->next;
+    }
+
+    printf("\nnext fit pointer : at %d\n",(list->next_fit_ptr != NULL)?list->next_fit_ptr->start:-1);
+    printf("total free memory : %d\n",list->total_free);
 }

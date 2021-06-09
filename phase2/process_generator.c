@@ -68,10 +68,12 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     ///////////////////////////////////////////////////////////////////////////////////////////////////////////
 
     char *chosen_algorithm = argv[2];
+    char * choose_mem = argv[3];
     char *additionalParameters;
+   
     //only read a second argument if it was RR
     if (strcmp(chosen_algorithm, "5") == 0)
-        additionalParameters = argv[3];
+        additionalParameters = argv[4];
     else
         additionalParameters = "GARBAGE";
 
@@ -85,8 +87,9 @@ int main(int argc, char *argv[]) // file name, scheduling algorithm
     {
         printf("ProcessGenerator: I have started the scheduler");
         char buff[18];
+        
         sprintf(buff, "%u", number_processes);
-        char *arr[] = {chosen_algorithm, additionalParameters, buff, NULL};
+        char *arr[] = {chosen_algorithm,additionalParameters, buff,choose_mem,NULL};
         execv("./scheduler.out", arr);
     }
     int pidCLK = fork();

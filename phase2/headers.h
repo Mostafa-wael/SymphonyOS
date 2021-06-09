@@ -274,3 +274,30 @@ int setSemaphoreValue(int semSetID, int semIdx)
     semun.val = 1;
     return semctl(semSetID, semIdx, SETVAL, semun);
 }
+
+
+//----------------------------------memory--------------------------
+
+//*************************************************free memory list*******************************
+#define MEM_SIZE 128
+#define MIN_SIZE_BUDDY 8  
+
+enum node_type {PROC,HOLE};
+
+struct mem_node{
+    int start ;
+    int length  ;
+    enum node_type type ;
+
+    struct mem_node* next ;
+
+    struct mem_node* buddy ;
+};
+
+struct freemem_list_t {
+    struct mem_node* head ;
+
+    struct mem_node* next_fit_ptr ;
+
+    int total_free ;
+};
